@@ -1,4 +1,5 @@
 require 'open-uri'
+require 'net/http'
 require 'timeout'
 
 require 'mogilefs/client'
@@ -25,6 +26,11 @@ class MogileFS::MogileFS < MogileFS::Client
   attr_reader :domain
 
   ##
+  # The timeout for get_file_data.  Defaults to five seconds.
+
+  attr_accessor :get_file_data_timeout
+
+  ##
   # Creates a new MogileFS::MogileFS instance.  +args+ must include a key
   # :domain specifying the domain of this client.  A key :root will be used to
   # specify the root of the NFS file system.
@@ -32,6 +38,8 @@ class MogileFS::MogileFS < MogileFS::Client
   def initialize(args = {})
     @domain = args[:domain]
     @root = args[:root]
+
+    @get_file_data_timeout = 5
 
     raise ArgumentError, "you must specify a domain" unless @domain
 
@@ -68,7 +76,11 @@ class MogileFS::MogileFS < MogileFS::Client
       when /^http:\/\// then
         begin
           path = URI.parse path
-          data = timeout(5, MogileFS::Timeout) { path.read }
+
+          data = timeout @get_file_data_timeout, MogileFS::Timeout do
+            path.read
+          end
+
           return data
         rescue MogileFS::Timeout
           next
@@ -196,8 +208,43 @@ class MogileFS::MogileFS < MogileFS::Client
     res = @backend.rename :domain => @domain, :from_key => from, :to_key => to
 
     if res.nil? and @backend.lasterr != 'unknown_key' then
-      raise "unable to rename #{from_key} to #{to_key}: #{@backend.lasterr}"
+      raise "unable to rename #{from} to #{to}: #{@backend.lasterr}"
     end
+  end
+
+  ##
+  # Returns the size of +key+.
+  def size(key)
+    paths = get_paths key
+
+    return nil unless paths
+
+    paths.each do |path|
+      next unless path
+      case path
+      when /^http:\/\// then
+        begin
+          url = URI.parse path
+
+          req = Net::HTTP::Head.new url.request_uri
+
+          res = timeout @get_file_data_timeout, MogileFS::Timeout do
+            Net::HTTP.start url.host, url.port do |http|
+              http.request req
+            end
+          end
+
+          return res['Content-Length'].to_i
+        rescue MogileFS::Timeout
+          next
+        end
+      else
+        next unless File.exist? path
+        return File.size(path)
+      end
+    end
+
+    return nil
   end
 
   ##

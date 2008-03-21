@@ -21,7 +21,7 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_initialize
     assert_equal 'test', @client.domain
-    assert_equal '/mogilefs/test', @client.root
+    assert_equal @root, @client.root
 
     assert_raises ArgumentError do
       MogileFS::MogileFS.new :hosts => ['kaa:6001'], :root => '/mogilefs/test'
@@ -114,8 +114,120 @@ class TestMogileFS__MogileFS < TestMogileFS
     end
   end
 
+  def test_size_http
+    socket = FakeSocket.new <<-EOF
+HTTP/1.0 200 OK\r
+Content-Length: 5\r
+    EOF
+
+    TCPSocket.sockets << socket
+
+    path = 'http://example.com/path'
+
+    @backend.get_paths = { 'paths' => 1, 'path1' => path }
+
+    assert_equal 5, @client.size('key')
+
+    socket.write_s.rewind
+
+    assert_equal "HEAD /path HTTP/1.1\r\n", socket.write_s.gets
+
+    assert_equal ['example.com', 80], TCPSocket.connections.shift
+    assert_empty TCPSocket.connections
+  end
+
+  def test_size_nfs
+    path = File.join @root, 'path'
+
+    File.open path, 'w' do |fp| fp.write 'data!' end
+
+    @backend.get_paths = { 'paths' => 1, 'path1' => 'path' }
+
+    assert_equal 5, @client.size('key')
+  end
+
+  def test_store_content_http
+    socket = FakeSocket.new 'HTTP/1.0 200 OK'
+
+    TCPSocket.sockets << socket
+
+    @backend.create_open = {
+      'devid' => '1',
+      'path' => 'http://example.com/path',
+    }
+
+    @client.store_content 'new_key', 'test', 'data'
+
+    expected = <<-EOF.chomp
+PUT /path HTTP/1.0\r
+Content-Length: 4\r
+\r
+data
+    EOF
+
+    assert_equal expected, socket.write_s.string
+
+    assert_equal ['example.com', 80], TCPSocket.connections.shift
+    assert_empty TCPSocket.connections
+  end
+
+  def test_store_content_http_empty
+    socket = FakeSocket.new 'HTTP/1.0 200 OK'
+
+    TCPSocket.sockets << socket
+
+    @backend.create_open = {
+      'devid' => '1',
+      'path' => 'http://example.com/path',
+    }
+
+    @client.store_content 'new_key', 'test', ''
+
+    expected = <<-EOF
+PUT /path HTTP/1.0\r
+Content-Length: 0\r
+\r
+    EOF
+
+    assert_equal expected, socket.write_s.string
+
+    assert_equal ['example.com', 80], TCPSocket.connections.shift
+    assert_empty TCPSocket.connections
+  end
+
+  def test_store_content_nfs
+    @backend.create_open = {
+      'dev_count' => '1',
+      'devid_1' => '1',
+      'path_1' => '/path',
+    }
+
+    @client.store_content 'new_key', 'test', 'data'
+
+    dest_file = File.join(@root, 'path')
+
+    assert File.exist?(dest_file)
+    assert_equal 'data', File.read(dest_file)
+  end
+
+  def test_store_content_nfs_empty
+    @backend.create_open = {
+      'dev_count' => '1',
+      'devid_1' => '1',
+      'path_1' => '/path',
+    }
+
+    @client.store_content 'new_key', 'test', ''
+
+    dest_file = File.join(@root, 'path')
+
+    assert File.exist?(dest_file)
+    assert_equal '', File.read(dest_file)
+  end
+
   def test_store_content_readonly
     @client.readonly = true
+
     assert_raises RuntimeError do
       @client.store_content 'new_key', 'test', nil
     end
@@ -130,23 +242,34 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_rename_existing
     @backend.rename = {}
-    assert_nothing_raised do
-      assert_equal(nil, @client.rename('from_key', 'to_key'))
-    end
+
+    assert_nil @client.rename('from_key', 'to_key')
   end
 
   def test_rename_nonexisting
     @backend.rename = 'unknown_key', ''
-    assert_nothing_raised do
-      assert_equal(nil, @client.rename('from_key', 'to_key'))
+
+    assert_nil @client.rename('from_key', 'to_key')
+  end
+
+  def test_rename_no_key
+    @backend.rename = 'no_key', ''
+
+    e = assert_raises RuntimeError do
+      @client.rename 'new_key', 'test'
     end
+
+    assert_equal 'unable to rename new_key to test: no_key', e.message
   end
 
   def test_rename_readonly
     @client.readonly = true
-    assert_raises RuntimeError do
+
+    e = assert_raises RuntimeError do
       @client.rename 'new_key', 'test'
     end
+
+    assert_equal 'readonly mogilefs', e.message
   end
 
   def test_sleep

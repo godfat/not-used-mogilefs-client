@@ -1,5 +1,12 @@
 require 'test/unit'
 
+require 'fileutils'
+require 'tmpdir'
+require 'stringio'
+
+require 'rubygems'
+require 'test/zentest_assertions'
+
 $TESTING = true
 
 require 'mogilefs'
@@ -32,22 +39,93 @@ class FakeBackend
 
 end
 
+class FakeSocket
+
+  attr_reader :read_s
+  attr_reader :write_s
+
+  def initialize(read = '')
+    @read_s = StringIO.new read
+    @write_s = StringIO.new
+    @closed = false
+  end
+
+  def closed?
+    @closed
+  end
+
+  def close
+    @closed = true
+    return nil
+  end
+
+  def gets
+    @read_s.gets
+  end
+
+  def peeraddr
+    ['AF_INET', 6001, 'localhost', '127.0.0.1']
+  end
+
+  def read(bytes)
+    @read_s.read bytes
+  end
+
+  def sysread(bytes)
+    @read_s.sysread bytes
+  end
+
+  def write(data)
+    @write_s.write data
+  end
+
+end
+
 class MogileFS::Client
   attr_writer :readonly
 end
 
+class TCPSocket
+
+  class << self
+
+    attr_accessor :connections
+    attr_accessor :sockets
+
+    alias old_new new
+
+    def new(host, port)
+      raise Errno::ECONNREFUSED if @sockets.empty?
+      @connections << [host, port]
+      @sockets.pop
+    end
+
+    alias open new
+
+  end
+
+end
+
 class TestMogileFS < Test::Unit::TestCase
 
+  undef_method :default_test
+
   def setup
-    return if self.class == TestMogileFS
-    @root = '/mogilefs/test'
+    @tempdir = File.join Dir.tmpdir, "test_mogilefs_#{$$}"
+    @root = File.join @tempdir, 'root'
+    FileUtils.mkdir_p @root
+
     @client = @klass.new :hosts => ['kaa:6001'], :domain => 'test',
                                   :root => @root
     @backend = FakeBackend.new
     @client.instance_variable_set '@backend', @backend
+
+    TCPSocket.sockets = []
+    TCPSocket.connections = []
   end
 
-  def test_nothing
+  def teardown
+    FileUtils.rm_rf @tempdir
   end
 
 end

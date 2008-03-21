@@ -75,7 +75,7 @@ class MogileFS::HTTPFile < StringIO
   def close
     connect_socket
 
-    @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-length: #{length}\r\n\r\n#{string}"
+    @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{length}\r\n\r\n#{string}"
 
     if connected? then
       line = @socket.gets
@@ -86,21 +86,12 @@ class MogileFS::HTTPFile < StringIO
         case status
         when 200..299 then # success!
         else
-          found_header = false
-          body = []
-          line = @socket.gets
-          until line.nil? do
-            line.strip
-            found_header = true if line.nil?
-            next unless found_header
-            body << " #{line}"
-          end
-          body = body[0, 512] if body.length > 512
-          raise "HTTP response status from upload: #{body}"
+          raise "HTTP response status from upload: #{status}"
         end
       else
         raise "Response line not understood: #{line}"
       end
+
       @socket.close
     end
 

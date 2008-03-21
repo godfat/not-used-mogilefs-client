@@ -1,4 +1,5 @@
 require 'test/unit'
+require 'test/setup'
 
 $TESTING = true
 
@@ -12,30 +13,11 @@ class MogileFS::Backend
 
 end
 
-class FakeSocket
-
-  def initialize
-    @closed = false
-  end
-
-  def closed?
-    @closed
-  end
-
-  def close
-    @closed = true
-    return nil
-  end
-
-  def peeraddr
-    ['AF_INET', 6001, 'localhost', '127.0.0.1']
-  end
-
-end
-
 class TestBackend < Test::Unit::TestCase
 
   def setup
+    TCPSocket.connections = []
+    TCPSocket.sockets = []
     @backend = MogileFS::Backend.new :hosts => ['localhost:1']
   end
 
