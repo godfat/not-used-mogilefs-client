@@ -1,11 +1,13 @@
 = 1.3.0
 
 * Fixed MogileFS#rename.  Bug #14465 submitted by Justin Dossey.
-* Removed infinite loop in MogileFS::HTTPFile#store_file.  Patch #13789 by
-  Andy Lo-A-Foe.
+* Removed infinite loop in MogileFS::HTTPFile#store_file.  Patch #13789
+  submitted by  Andy Lo-A-Foe.
 * Made MogileFS#get_file_data timeout configurable.  Bug #13490 submitted by
   Andy Lo-A-Foe.
-* Add MogileFS#size.  Feature Request #14484 by Justin Dossey.
+* Add MogileFS#size.  Feature Request #14484 submitted by Justin Dossey.
+* Fix MogileFS#get_file_data to return the data for HTTP mode.  Bug #7133
+  submitted by John Wanko.
 
 = 1.2.1
 
