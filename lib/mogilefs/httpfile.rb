@@ -1,0 +1,144 @@
+require 'fcntl'
+require 'socket'
+require 'stringio'
+require 'uri'
+require 'mogilefs/backend'
+
+##
+# HTTPFile wraps up the new file operations for storing files onto an HTTP
+# storage node.
+#
+# You really don't want to create an HTTPFile by hand.  Instead you want to
+# create a new file using MogileFS::MogileFS.new_file.
+#
+# WARNING! HTTP mode is completely untested as I cannot make it work on
+# FreeBSD.  Please send patches/tests if you find bugs.
+#--
+# TODO dup'd content in MogileFS::NFSFile
+
+class MogileFS::HTTPFile < StringIO
+
+  ##
+  # The path this file will be stored to.
+
+  attr_reader :path
+
+  ##
+  # The key for this file.  This key won't represent a real file until you've
+  # called #close.
+
+  attr_reader :key
+
+  ##
+  # The class of this file.
+
+  attr_reader :class
+
+  ##
+  # Works like File.open.  Use MogileFS::MogileFS#new_file instead of this
+  # method.
+
+  def self.open(*args)
+    fp = new(*args)
+
+    return fp unless block_given?
+
+    begin
+      yield fp
+    ensure
+      fp.close
+    end
+  end
+
+  ##
+  # Creates a new HTTPFile with MogileFS-specific data.  Use
+  # MogileFS::MogileFS#new_file instead of this method.
+
+  def initialize(mg, fid, path, devid, klass, key, dests, content_length)
+    super ''
+    @mg = mg
+    @fid = fid
+    @path = path
+    @devid = devid
+    @klass = klass
+    @key = key
+
+    @dests = dests.map { |(_,u)| URI.parse u }
+    @tried = {}
+
+    @socket = nil
+  end
+
+  ##
+  # Closes the file handle and marks it as closed in MogileFS.
+
+  def close
+    connect_socket
+
+    @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-length: #{length}\r\n\r\n#{string}"
+
+    if connected? then
+      line = @socket.gets
+      raise 'Unable to read response line from server' if line.nil?
+
+      if line =~ %r%^HTTP/\d+\.\d+\s+(\d+)% then
+        status = Integer $1
+        case status
+        when 200..299 then # success!
+        else
+          found_header = false
+          body = []
+          line = @socket.gets
+          until line.nil? do
+            line.strip
+            found_header = true if line.nil?
+            next unless found_header
+            body << " #{line}"
+          end
+          body = body[0, 512] if body.length > 512
+          raise "HTTP response status from upload: #{body}"
+        end
+      else
+        raise "Response line not understood: #{line}"
+      end
+      @socket.close
+    end
+
+    @mg.backend.create_close(:fid => @fid, :devid => @devid,
+                             :domain => @mg.domain, :key => @key,
+                             :path => @path, :size => length)
+    return nil
+  end
+
+  private
+
+  def connected?
+    return !(@socket.nil? or @socket.closed?)
+  end
+
+  def connect_socket
+    return @socket if connected?
+
+    next_path
+
+    if @path.nil? then
+      @tried.clear
+      next_path
+      raise 'Unable to open socket to storage node' if @path.nil?
+    end
+
+    @socket = TCPSocket.new @path.host, @path.port
+  end
+
+  def next_path
+    @path = nil
+    @dests.each do |dest|
+      unless @tried.include? dest then
+        @path = dest
+        return
+      end
+    end
+  end
+
+end
+
