@@ -2,6 +2,8 @@
 
 * Switched to Hoe.
 * Moved to p4.
+* Fixed bug #7273 in HTTP mode of client where data would not get
+  returned.  Submitted by Matthew Willson.
 
 = 1.2.0
 

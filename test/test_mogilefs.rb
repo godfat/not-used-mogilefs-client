@@ -1,5 +1,17 @@
 require 'test/setup'
 
+class URI::HTTP
+
+  class << self
+    attr_accessor :read_data
+  end
+
+  def read
+    self.class.read_data.shift
+  end
+
+end
+
 class TestMogileFS__MogileFS < TestMogileFS
 
   def setup
@@ -14,6 +26,17 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_raises ArgumentError do
       MogileFS::MogileFS.new :hosts => ['kaa:6001'], :root => '/mogilefs/test'
     end
+  end
+
+  def test_get_file_data_http
+    URI::HTTP.read_data = %w[data!]
+
+    path1 = 'http://rur-1/dev1/0/000/000/0000000062.fid'
+    path2 = 'http://rur-2/dev2/0/000/000/0000000062.fid'
+
+    @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
+
+    assert_equal 'data!', @client.get_file_data('key')
   end
 
   def test_get_paths

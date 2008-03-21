@@ -58,15 +58,18 @@ class MogileFS::MogileFS < MogileFS::Client
   # Retrieves the contents of +key+.
 
   def get_file_data(key)
-    get_paths(key).each do |path|
+    paths = get_paths key
+
+    return nil unless paths
+
+    paths.each do |path|
       next unless path
       case path
       when /^http:\/\// then
         begin
-          puts "path: #{path}"
           path = URI.parse path
           data = timeout(5, MogileFS::Timeout) { path.read }
-          puts "data: #{data}"
+          return data
         rescue MogileFS::Timeout
           next
         end
