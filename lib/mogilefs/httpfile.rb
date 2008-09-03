@@ -88,7 +88,7 @@ class MogileFS::HTTPFile < StringIO
       file_size = File.size(@bigfile)
       @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{file_size}\r\n\r\n"
       while not fp.eof?
-        chunk = fp.read 16384000
+        chunk = fp.read 0x10000
         @socket.write chunk
       end
       fp.close
