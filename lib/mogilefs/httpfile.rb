@@ -87,8 +87,18 @@ class MogileFS::HTTPFile < StringIO
       fp = File.open(@bigfile)
       file_size = File.size(@bigfile)
       @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{file_size}\r\n\r\n"
-      while not fp.eof?
-        chunk = fp.read 0x10000
+
+      # avoid making sysread repeatedly allocate a new String
+      # This is not well-documented, but both read/sysread can take
+      # an optional second argument to use as the buffer to avoid
+      # GC overhead of creating new strings in a loop
+      chunk = String.new
+      loop do
+        begin
+          fp.sysread 0x10000, chunk
+        rescue EOFError
+          break
+        end
         @socket.write chunk
       end
       fp.close
