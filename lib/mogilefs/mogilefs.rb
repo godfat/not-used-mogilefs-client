@@ -161,7 +161,12 @@ class MogileFS::MogileFS < MogileFS::Client
       if file.respond_to? :read then
         return copy(file, mfp)
       else
-        return File.open(file) { |fp| copy(fp, mfp) }
+	if File.size(file) > (256 * 1024 * 1024) # Bigass file, handle differently
+	  mfp.bigfile = file
+	  return mfp.close
+	else
+          return File.open(file) { |fp| copy(fp, mfp) }
+        end
       end
     end
   end
