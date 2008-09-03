@@ -155,6 +155,7 @@ class MogileFS::Backend
     found = select [socket], nil, nil, @timeout
     if found.nil? or found.empty? then
       peer = (@socket ? "#{@socket.peeraddr[3]}:#{@socket.peeraddr[1]} " : nil)
+      socket.close  # we DO NOT want the response we timed out waiting for, to crop up later on, on the same socket, intersperesed with a subsequent request! so, we close the socket if it times out like this
       raise MogileFS::UnreadableSocketError, "#{peer}never became readable"
     end
     return true

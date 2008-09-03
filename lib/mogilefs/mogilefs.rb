@@ -120,7 +120,7 @@ class MogileFS::MogileFS < MogileFS::Client
     res = @backend.create_open(:domain => @domain, :class => klass,
                                :key => key, :multi_dest => 1)
 
-    raise "#{@backend.lasterr}: #{@backend.lasterrstr}" if res.nil? # HACK
+    raise "#{@backend.lasterr}: #{@backend.lasterrstr}" if res.nil? || res == {} # HACK
 
     dests = nil
 
@@ -142,6 +142,8 @@ class MogileFS::MogileFS < MogileFS::Client
     devid, path = dest
 
     case path
+    when nil, '' then
+      raise 'Empty path for mogile upload'
     when /^http:\/\// then
       MogileFS::HTTPFile.open(self, res['fid'], path, devid, klass, key,
                               dests, bytes, &block)
