@@ -54,7 +54,7 @@ class MogileFS::MogileFS < MogileFS::Client
 
     keys, after = list_keys prefix
 
-    until keys.empty? do
+    until keys.nil? or keys.empty? do
       keys.each { |k| yield k }
       keys, after = list_keys prefix, after
     end
