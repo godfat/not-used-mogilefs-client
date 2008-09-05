@@ -67,7 +67,6 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
     data = Tempfile.new('test_mogilefs.dest_data')
-    @client.get_file_data_timeout = nil
     @client.get_file_data('key') do |fp|
       buf = ''
       read_nr = nr = 0

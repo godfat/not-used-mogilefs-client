@@ -77,21 +77,20 @@ class MogileFS::MogileFS < MogileFS::Client
         begin
           path = URI.parse path
 
-          data = timeout @get_file_data_timeout, MogileFS::Timeout do
-            if block_given?
+          if block_given?
+            sock = nil
+            timeout @get_file_data_timeout, MogileFS::Timeout do
               sock = TCPSocket.new(path.host, path.port)
               sock.sync = true
               sock.syswrite("GET #{path.request_uri} HTTP/1.0\r\n\r\n")
               buf = sock.recv(4096, Socket::MSG_PEEK)
               head, body = buf.split(/\r\n\r\n/, 2)
-              head = sock.sysread(head.size + 4)
-              yield sock
-            else
-              path.read
+              head = sock.recv(head.size + 4)
             end
+            return yield(sock)
+          else
+            return path.read
           end
-
-          return data
         rescue MogileFS::Timeout
           next
         end
