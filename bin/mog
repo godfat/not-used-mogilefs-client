@@ -1,0 +1,165 @@
+#!/usr/bin/env ruby
+require 'mogilefs'
+require 'optparse'
+
+# this is to be compatible with config files used by the Perl tools
+def parse_config_file!(path, overwrite = false)
+  dest = {}
+  File.open(path).each_line do |line|
+    line.strip!
+    if /^(domain|class)\s*=\s*(\S+)/.match(line)
+      dest[$1.to_sym] = $2
+    elsif m = /^(?:trackers|hosts)\s*=\s*(.*)/.match(line)
+      dest[:hosts] = $1.split(/\s*,\s*/)
+    else
+      STDERR.puts "Ignored configuration line: #{line}" unless /^#/.match(line)
+    end
+  end
+  dest
+end
+
+# parse the default config file if one exists
+def_file = File.expand_path("~/.mogilefs-client.conf")
+def_cfg = File.exist?(def_file) ? parse_config_file!(def_file) : {}
+
+# parse the command-line first, these options take precedence over all else
+cli_cfg = {}
+config_file = nil
+ls_l = false
+ls_h = false
+ARGV.options do |x|
+  x.banner = "Usage: #{$0} [options] <command> [<arguments>]"
+  x.separator ''
+
+  x.on('-c', '--config=/path/to/config',
+       'config file to load') { |file| config_file = file }
+
+  x.on('-t', '--trackers=host1[,host2]', '--hosts=host1[,host2]', Array,
+       'hostnames/IP addresses of trackers') do |trackers|
+    cli_cfg[:hosts] = trackers
+  end
+
+  x.on('-C', '--class=s', 'class') { |klass| cli_cfg[:class] = klass }
+  x.on('-d', '--domain=s', 'domain') { |domain| cli_cfg[:domain] = domain }
+  x.on('-l', "long listing format (`ls' command)") { ls_l = true }
+  x.on('-h', '--human-readable',
+       "print sizes in human-readable format (`ls' command)") { ls_h = true }
+
+  x.separator ''
+  x.on('--help', 'Show this help message.') { puts x; exit }
+  x.parse!
+end
+
+# parse the config file specified at the command-line
+file_cfg = config_file ? parse_config_file!(config_file, true) : {}
+
+# read environment variables, too.  This Ruby API favors the term
+# "hosts", however upstream MogileFS teminology favors "trackers" instead.
+# Favor the term more consistent with what the MogileFS inventors used.
+env_cfg = {}
+if ENV["MOG_TRACKERS"]
+  env_cfg[:hosts] = ENV["MOG_TRACKERS"].split(/\s*,\s*/)
+end
+if ENV["MOG_HOSTS"] && env_cfg[:hosts].empty?
+  env_cfg[:hosts] = ENV["MOG_HOSTS"].split(/\s*,\s*/)
+end
+env_cfg[:domain] = ENV["MOG_DOMAIN"] if ENV["MOG_DOMAIN"]
+env_cfg[:class] = ENV["MOG_CLASS"] if ENV["MOG_CLASS"]
+
+# merge the configs, favoring them in order specified:
+cfg = {}.merge(def_cfg).merge(env_cfg).merge(file_cfg).merge(cli_cfg)
+
+# error-checking
+err = []
+err << "trackers must be specified" if cfg[:hosts].nil? || cfg[:hosts].empty?
+err << "domain must be specified" unless cfg[:domain]
+if err.any?
+  STDERR.puts "Errors:\n  #{err.join("\n  ")}"
+  STDERR.puts ARGV.options
+  exit 1
+end
+
+unless cmd = ARGV.shift
+  STDERR.puts ARGV.options
+  exit 1
+end
+
+include MogileFS::Util
+mg = MogileFS::MogileFS.new(cfg)
+
+begin
+  case cmd
+  when 'cp'
+    filename = ARGV.shift or raise ArgumentError, '<filename> <key>'
+    key = ARGV.shift or raise ArgumentError, '<filename> <key>'
+    ARGV.shift and raise ArgumentError, '<filename> <key>'
+    cfg[:class] or raise ArgumentError, 'E: --class must be specified'
+    mg.store_file(key, cfg[:class], filename)
+  when 'cat'
+    ARGV.empty? and raise ArgumentError, '<key1> [<key2> ...]'
+    ARGV.each { |key| mg.get_file_data(key) { |fp| sysrwloop(fp, STDOUT) } }
+  when 'ls'
+    prefixes = ARGV.empty? ? [ nil ] : ARGV
+    prefixes.each do |prefix|
+      mg.each_key(prefix) do |key|
+        if ls_l
+          path_nr = "% 2d" % mg.get_paths(key).size
+          size = mg.size(key)
+          if ls_h && size > 1024
+            suff = ''
+            %w(K M G).each do |s|
+              size /= 1024.0
+              suff = s
+              break if size <= 1024
+            end
+            size = sprintf("%.1f%s", size, suff)
+          else
+            size = size.to_s
+          end
+          size = (' ' * (12 - size.length)) << size # right justify
+          puts [ path_nr, size, key ].pack("A4 A16 A32")
+        else
+          puts key
+        end
+      end
+    end
+  when 'rm'
+    ARGV.empty? and raise ArgumentError, '<key1> [<key2>]'
+    ARGV.each { |key| mg.delete(key) }
+  when 'mv'
+    from = ARGV.shift or raise ArgumentError, '<from> <to>'
+    to = ARGV.shift or raise ArgumentError, '<from> <to>'
+    ARGV.shift and raise ArgumentError, '<from> <to>'
+    mg.rename(from, to)
+  when 'stat' # this outputs a RFC822-like format
+    ARGV.empty? and raise ArgumentError, '<key1> [<key2>]'
+    ARGV.each_with_index do |key, i|
+      if size = mg.size(key)
+        puts "Key: #{key}"
+        puts "Size: #{size}"
+        mg.get_paths(key).each_with_index do |path,i|
+          puts "URL-#{i}: #{path}"
+        end
+        puts ""
+      else
+        STDERR.puts "No such key: #{key}"
+      end
+    end
+  when 'tee'
+    require 'tempfile'
+    key = ARGV.shift or raise ArgumentError, '<key>'
+    ARGV.shift and raise ArgumentError, '<key>'
+    cfg[:class] or raise ArgumentError, 'E: --class must be specified'
+    buf = ''
+    tmp = Tempfile.new('mog-tee') # TODO: explore Transfer-Encoding:chunked :)
+    sysrwloop(STDIN, tmp)
+    mg.store_file(key, cfg[:class], tmp.path)
+    tmp.close
+  else
+    raise ArgumentError, "Unknown command: #{cmd}"
+  end
+rescue ArgumentError => err
+  STDERR.puts "Usage: #{$0} #{cmd} #{err.message}"
+  exit 1
+end
+exit 0

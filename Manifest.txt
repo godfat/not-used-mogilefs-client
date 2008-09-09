@@ -3,6 +3,7 @@ LICENSE.txt
 Manifest.txt
 README.txt
 Rakefile
+bin/mog
 lib/mogilefs.rb
 lib/mogilefs/admin.rb
 lib/mogilefs/backend.rb
