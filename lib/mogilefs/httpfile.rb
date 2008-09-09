@@ -3,6 +3,7 @@ require 'socket'
 require 'stringio'
 require 'uri'
 require 'mogilefs/backend'
+require 'mogilefs/util'
 
 ##
 # HTTPFile wraps up the new file operations for storing files onto an HTTP
@@ -17,6 +18,7 @@ require 'mogilefs/backend'
 # TODO dup'd content in MogileFS::NFSFile
 
 class MogileFS::HTTPFile < StringIO
+  include MogileFS::Util
 
   ##
   # The path this file will be stored to.
@@ -87,20 +89,7 @@ class MogileFS::HTTPFile < StringIO
       fp = File.open(@bigfile)
       file_size = File.size(@bigfile)
       @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{file_size}\r\n\r\n"
-
-      # avoid making sysread repeatedly allocate a new String
-      # This is not well-documented, but both read/sysread can take
-      # an optional second argument to use as the buffer to avoid
-      # GC overhead of creating new strings in a loop
-      chunk = String.new
-      loop do
-        begin
-          fp.sysread 0x10000, chunk
-        rescue EOFError
-          break
-        end
-        @socket.write chunk
-      end
+      sysrwloop(fp, @socket)
       fp.close
     else
       @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{length}\r\n\r\n#{string}"
