@@ -1,13 +1,21 @@
 require 'test/setup'
+require 'stringio'
+require 'tempfile'
+require 'fileutils'
 
 class URI::HTTP
 
   class << self
     attr_accessor :read_data
+    attr_accessor :open_data
   end
 
   def read
     self.class.read_data.shift
+  end
+
+  def open(&block)
+    yield self.class.open_data
   end
 
 end
@@ -37,6 +45,44 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
     assert_equal 'data!', @client.get_file_data('key')
+  end
+
+  def test_get_file_data_http_block
+    tmpfp = Tempfile.new('test_mogilefs.open_data')
+    nr = 100 # tested with 1000
+    chunk_size = 1024 * 1024
+    expect_size = nr * chunk_size
+    header = "HTTP/1.0 200 OK\r\n" \
+             "Content-Length: #{expect_size}\r\n\r\n"
+    assert_equal header.size, tmpfp.syswrite(header)
+    nr.times { assert_equal chunk_size, tmpfp.syswrite(' ' * chunk_size) }
+    assert_equal expect_size + header.size, File.size(tmpfp.path)
+    tmpfp.sysseek(0)
+    socket = FakeSocket.new(tmpfp)
+    TCPSocket.sockets << socket
+
+    path1 = 'http://rur-1/dev1/0/000/000/0000000062.fid'
+    path2 = 'http://rur-2/dev2/0/000/000/0000000062.fid'
+
+    @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
+
+    data = Tempfile.new('test_mogilefs.dest_data')
+    @client.get_file_data_timeout = nil
+    @client.get_file_data('key') do |fp|
+      buf = ''
+      read_nr = nr = 0
+      loop do
+        begin
+          fp.sysread(16384, buf)
+          read_nr = buf.size
+          nr += read_nr
+          assert_equal read_nr, data.syswrite(buf), "partial write"
+        rescue EOFError
+          break
+        end
+      end
+      assert_equal expect_size, nr, "size mismatch"
+    end
   end
 
   def test_get_paths

@@ -65,7 +65,7 @@ class MogileFS::MogileFS < MogileFS::Client
   ##
   # Retrieves the contents of +key+.
 
-  def get_file_data(key)
+  def get_file_data(key, &block)
     paths = get_paths key
 
     return nil unless paths
@@ -78,7 +78,17 @@ class MogileFS::MogileFS < MogileFS::Client
           path = URI.parse path
 
           data = timeout @get_file_data_timeout, MogileFS::Timeout do
-            path.read
+            if block_given?
+              sock = TCPSocket.new(path.host, path.port)
+              sock.sync = true
+              sock.syswrite("GET #{path.request_uri} HTTP/1.0\r\n\r\n")
+              buf = sock.recv(4096, Socket::MSG_PEEK)
+              head, body = buf.split(/\r\n\r\n/, 2)
+              head = sock.sysread(head.size + 4)
+              yield sock
+            else
+              path.read
+            end
           end
 
           return data
@@ -160,14 +170,14 @@ class MogileFS::MogileFS < MogileFS::Client
     raise 'readonly mogilefs' if readonly?
 
     new_file key, klass do |mfp|
-      if file.respond_to? :read then
-        return copy(file, mfp)
+      if file.respond_to? :sysread then
+        return sysrwloop(file, mfp)
       else
 	if File.size(file) > (256 * 1024 * 1024) # Bigass file, handle differently
 	  mfp.bigfile = file
 	  return mfp.close
 	else
-          return File.open(file) { |fp| copy(fp, mfp) }
+          return File.open(file) { |fp| sysrwloop(fp, mfp) }
         end
       end
     end
@@ -267,20 +277,6 @@ class MogileFS::MogileFS < MogileFS::Client
     keys = (1..res['key_count'].to_i).map { |i| res["key_#{i}"] }
 
     return keys, res['next_after']
-  end
-
-  private
-
-  def copy(from, to) # HACK use FileUtils
-    bytes = 0
-
-    until from.eof? do
-      chunk = from.read 8192
-      to.write chunk
-      bytes += chunk.length
-    end
-
-    return bytes
   end
 
 end

@@ -43,11 +43,18 @@ class FakeSocket
 
   attr_reader :read_s
   attr_reader :write_s
+  attr_reader :sync
 
-  def initialize(read = '')
-    @read_s = StringIO.new read
-    @write_s = StringIO.new
+  def initialize(read = '', write = StringIO.new)
+    @read_s = read.class.method_defined?(:sysread) ? read : StringIO.new(read)
+    @write_s = write
     @closed = false
+    @sync = false
+  end
+
+  def sync=(do_sync)
+    @write_s.sync = do_sync
+    @read_s.sync = do_sync
   end
 
   def closed?
@@ -71,12 +78,26 @@ class FakeSocket
     @read_s.read bytes
   end
 
-  def sysread(bytes)
-    @read_s.sysread bytes
+  def sysread(bytes, buf = '')
+    @read_s.sysread bytes, buf
   end
+
+  def recv_nonblock(bytes, flags = 0)
+    ret = @read_s.sysread(bytes)
+    # Ruby doesn't expose pread(2)
+    if (flags & Socket::MSG_PEEK) != 0
+      @read_s.sysseek(-ret.size, IO::SEEK_CUR)
+    end
+    ret
+  end
+  alias_method :recv, :recv_nonblock
 
   def write(data)
     @write_s.write data
+  end
+
+  def syswrite(data)
+    @write_s.syswrite data
   end
 
 end
