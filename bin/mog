@@ -2,6 +2,9 @@
 require 'mogilefs'
 require 'optparse'
 
+trap('INT') { exit 130 }
+trap('PIPE') { exit 0 }
+
 # this is to be compatible with config files used by the Perl tools
 def parse_config_file!(path, overwrite = false)
   dest = {}
