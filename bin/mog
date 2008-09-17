@@ -155,9 +155,13 @@ begin
     cfg[:class] or raise ArgumentError, 'E: --class must be specified'
     buf = ''
     tmp = Tempfile.new('mog-tee') # TODO: explore Transfer-Encoding:chunked :)
-    sysrwloop(STDIN, tmp)
-    mg.store_file(key, cfg[:class], tmp.path)
-    tmp.close
+    at_exit { tmp.unlink }
+    begin
+      sysrwloop(STDIN, tmp)
+      mg.store_file(key, cfg[:class], tmp.path)
+    ensure
+      tmp.close
+    end
   else
     raise ArgumentError, "Unknown command: #{cmd}"
   end
