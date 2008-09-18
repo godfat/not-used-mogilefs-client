@@ -6,7 +6,7 @@ require 'mogilefs'
 
 Hoe.new 'mogilefs-client', MogileFS::VERSION do |p|
   p.rubyforge_name = 'seattlerb'
-  p.authors = [ 'Eric Wong', 'Eric Hodel' ]
+  p.author = [ 'Eric Wong', 'Eric Hodel' ]
   p.email = 'normalperson@yhbt.net' # (Eric Wong)
   # p.email = 'drbrain@segment7.net' # (Eric Hodel)
   p.summary = p.paragraphs_of('README.txt', 1).first
