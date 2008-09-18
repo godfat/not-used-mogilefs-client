@@ -30,6 +30,8 @@ cli_cfg = {}
 config_file = nil
 ls_l = false
 ls_h = false
+test = {}
+
 ARGV.options do |x|
   x.banner = "Usage: #{$0} [options] <command> [<arguments>]"
   x.separator ''
@@ -41,6 +43,8 @@ ARGV.options do |x|
        'hostnames/IP addresses of trackers') do |trackers|
     cli_cfg[:hosts] = trackers
   end
+
+  x.on('-e', 'True if key exists') { test[:e] = true }
 
   x.on('-C', '--class=s', 'class') { |klass| cli_cfg[:class] = klass }
   x.on('-d', '--domain=s', 'domain') { |domain| cli_cfg[:domain] = domain }
@@ -162,6 +166,31 @@ begin
     ensure
       tmp.close
     end
+  when 'test'
+    truth, ok = true, nil
+    raise ArgumentError, "-e must be specified" unless (test.size == 1)
+
+    truth, key = case ARGV.size
+    when 1
+      [ true, ARGV[0] ]
+    when 2
+      if ARGV[0] != "!"
+        raise ArgumentError, "#{ARGV[0]}: binary operator expected"
+      end
+      [ false, ARGV[1] ]
+    else
+      raise ArgumentError, "Too many arguments"
+    end
+
+    paths = mg.get_paths(key)
+    if test[:e]
+      ok = !!(paths && paths.size > 0)
+    else
+      raise ArgumentError, "Unknown flag: -#{test.keys.first}"
+    end
+
+    truth or ok = ! ok
+    exit ok ? 0 : 1
   else
     raise ArgumentError, "Unknown command: #{cmd}"
   end
