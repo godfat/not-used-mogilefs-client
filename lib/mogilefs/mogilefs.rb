@@ -76,18 +76,8 @@ class MogileFS::MogileFS < MogileFS::Client
       next unless path
       case path
       when /^http:\/\// then
-        path = URI.parse(path)
-        sock = nil
         begin
-          timeout @get_file_data_timeout, MogileFS::Timeout do
-            sock = TCPSocket.new(path.host, path.port)
-            sock.sync = true
-            sock.syswrite("GET #{path.request_uri} HTTP/1.0\r\n\r\n")
-            buf = sock.recv(4096, Socket::MSG_PEEK)
-            head, body = buf.split(/\r\n\r\n/, 2)
-            head = sock.recv(head.size + 4)
-          end
-
+          sock = http_get_sock(URI.parse(path))
           return block_given? ? yield(sock) : sock.read
         rescue MogileFS::Timeout, Errno::ECONNREFUSED,
                EOFError, SystemCallError
@@ -269,6 +259,22 @@ class MogileFS::MogileFS < MogileFS::Client
 
     return keys, res['next_after']
   end
+
+  protected
+
+    def http_get_sock(uri)
+      sock = nil
+      timeout @get_file_data_timeout, MogileFS::Timeout do
+        sock = TCPSocket.new(uri.host, uri.port)
+        sock.sync = true
+        sock.syswrite("GET #{uri.request_uri} HTTP/1.0\r\n\r\n")
+        buf = sock.recv(4096, Socket::MSG_PEEK)
+        head, body = buf.split(/\r\n\r\n/, 2)
+        head = sock.recv(head.size + 4)
+      end
+
+      sock
+    end # def http_get_sock
 
 end
 
