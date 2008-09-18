@@ -8,6 +8,13 @@
 * Add MogileFS#size.  Feature Request #14484 submitted by Justin Dossey.
 * Fix MogileFS#get_file_data to return the data for HTTP mode.  Bug #7133
   submitted by John Wanko.
+* New maintainer: Eric Wong
+* Add `mog' command-line tool as a demo/example
+* Lower memory consumption with large files
+* Allow get_file_data to accept a block for large files
+* Fix each_keys loop termination condition
+* Apply error handling patch from Matthew Willson.  Bug #15987
+* Merge large file patch from Andy Lo-A-Foe.  Bug #13764
 
 = 1.2.1
 
