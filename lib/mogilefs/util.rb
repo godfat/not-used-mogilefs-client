@@ -3,7 +3,7 @@ module MogileFS::Util
   CHUNK_SIZE = 65536
 
   # for copying large files while avoiding GC thrashing as much as possible
-  def sysrwloop(io_rd, io_wr)
+  def sysrwloop(io_rd, io_wr, filter = nil)
     copied = 0
     # avoid making sysread repeatedly allocate a new String
     # This is not well-documented, but both read/sysread can take
@@ -13,16 +13,18 @@ module MogileFS::Util
     io_wr.sync = true
     loop do
       begin
-        io_rd.sysread(CHUNK_SIZE, buf)
-        loop do
-          w = io_wr.syswrite(buf)
-          copied += w
-          break if w == buf.size
-          buf = buf[w..-1]
-        end
+        b = io_rd.sysread(CHUNK_SIZE, buf)
+        b = filter.call(b) if filter
+        copied += syswrite_full(io_wr, b)
       rescue EOFError
         break
       end
+    end
+
+    # filter must take nil as a possible argument to indicate EOF
+    if filter
+      b = filter.call(nil)
+      copied += syswrite_full(io_wr, b) if b && b.length
     end
     copied
   end # sysrwloop
@@ -78,5 +80,19 @@ module MogileFS::Util
     ensure
       uri_socks.keys.each { |sock| sock.close rescue nil }
   end
+
+  private
+
+    def syswrite_full(io_wr, buf)
+      written = 0
+      loop do
+        w = io_wr.syswrite(buf)
+        written += w
+        break if w == buf.size
+        buf = buf[w..-1]
+      end
+
+      written
+    end
 
 end
