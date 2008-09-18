@@ -13,7 +13,7 @@ Hoe.new 'mogilefs-client', MogileFS::VERSION do |p|
   p.url = p.paragraphs_of('README.txt', 5).first
   p.changes = p.paragraphs_of('History.txt', 0..1).join("\n\n")
 
-  p.extra_deps << [['ZenTest', '>= 3.6.1']]
+  p.extra_dev_deps << ['ZenTest', '>= 3.6.1']
 end
 
 # vim: syntax=Ruby
