@@ -4,6 +4,7 @@ require 'timeout'
 
 require 'mogilefs/client'
 require 'mogilefs/nfsfile'
+require 'mogilefs/util'
 
 ##
 # Timeout error class.
@@ -14,6 +15,8 @@ class MogileFS::Timeout < Timeout::Error; end
 # MogileFS File manipulation client.
 
 class MogileFS::MogileFS < MogileFS::Client
+
+  include MogileFS::Util
 
   ##
   # The path to the local MogileFS mount point if you are using NFS mode.
