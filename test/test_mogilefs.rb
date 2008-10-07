@@ -175,7 +175,7 @@ Content-Length: 5\r
 
     socket.write_s.rewind
 
-    assert_equal "HEAD /path HTTP/1.1\r\n", socket.write_s.gets
+    assert_equal "HEAD /path HTTP/1.0\r\n", socket.write_s.gets
 
     assert_equal ['example.com', 80], TCPSocket.connections.shift
     assert_empty TCPSocket.connections

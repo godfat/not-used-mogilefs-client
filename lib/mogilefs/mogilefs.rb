@@ -1,5 +1,5 @@
 require 'open-uri'
-require 'net/http'
+require 'socket'
 require 'timeout'
 
 require 'mogilefs/client'
@@ -245,16 +245,17 @@ class MogileFS::MogileFS < MogileFS::Client
         begin
           url = URI.parse path
 
-          req = Net::HTTP::Head.new url.request_uri
-
           res = timeout @get_file_data_timeout, MogileFS::Timeout do
-            Net::HTTP.start url.host, url.port do |http|
-              http.request req
-            end
+            s = TCPSocket.new(url.host, url.port)
+            s.syswrite("HEAD #{url.request_uri} HTTP/1.0\r\n\r\n")
+            s.sysread(4096)
           end
-
-          return res['Content-Length'].to_i
-        rescue MogileFS::Timeout
+          if cl = /^Content-Length:\s*(\d+)/i.match(res)
+            return cl[1].to_i
+          end
+          next
+        rescue MogileFS::Timeout, Errno::ECONNREFUSED,
+               EOFError, SystemCallError
           next
         end
       else
