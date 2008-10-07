@@ -53,6 +53,7 @@ class FakeSocket
   end
 
   def sync=(do_sync)
+    @sync = do_sync
     @write_s.sync = do_sync
     @read_s.sync = do_sync
   end
@@ -74,7 +75,7 @@ class FakeSocket
     ['AF_INET', 6001, 'localhost', '127.0.0.1']
   end
 
-  def read(bytes)
+  def read(bytes = nil)
     @read_s.read bytes
   end
 
@@ -86,7 +87,11 @@ class FakeSocket
     ret = @read_s.sysread(bytes)
     # Ruby doesn't expose pread(2)
     if (flags & Socket::MSG_PEEK) != 0
-      @read_s.sysseek(-ret.size, IO::SEEK_CUR)
+      if @read_s.respond_to?(:sysseek)
+        @read_s.sysseek(-ret.size, IO::SEEK_CUR)
+      else
+        @read_s.seek(-ret.size, IO::SEEK_CUR)
+      end
     end
     ret
   end

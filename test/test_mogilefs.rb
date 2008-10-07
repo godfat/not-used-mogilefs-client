@@ -3,23 +3,6 @@ require 'stringio'
 require 'tempfile'
 require 'fileutils'
 
-class URI::HTTP
-
-  class << self
-    attr_accessor :read_data
-    attr_accessor :open_data
-  end
-
-  def read
-    self.class.read_data.shift
-  end
-
-  def open(&block)
-    yield self.class.open_data
-  end
-
-end
-
 class TestMogileFS__MogileFS < TestMogileFS
 
   def setup
@@ -37,7 +20,9 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_get_file_data_http
-    URI::HTTP.read_data = %w[data!]
+    socket = FakeSocket.new("HTTP/1.0 200 OK\r\n" \
+                            "Content-Length: 5\r\n\r\ndata!")
+    TCPSocket.sockets << socket
 
     path1 = 'http://rur-1/dev1/0/000/000/0000000062.fid'
     path2 = 'http://rur-2/dev2/0/000/000/0000000062.fid'

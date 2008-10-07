@@ -1,4 +1,3 @@
-require 'open-uri'
 require 'socket'
 require 'timeout'
 
@@ -77,24 +76,21 @@ class MogileFS::MogileFS < MogileFS::Client
       next unless path
       case path
       when /^http:\/\// then
+        path = URI.parse(path)
+        sock = nil
         begin
-          path = URI.parse path
-
-          if block_given?
-            sock = nil
-            timeout @get_file_data_timeout, MogileFS::Timeout do
-              sock = TCPSocket.new(path.host, path.port)
-              sock.sync = true
-              sock.syswrite("GET #{path.request_uri} HTTP/1.0\r\n\r\n")
-              buf = sock.recv(4096, Socket::MSG_PEEK)
-              head, body = buf.split(/\r\n\r\n/, 2)
-              head = sock.recv(head.size + 4)
-            end
-            return yield(sock)
-          else
-            return path.read
+          timeout @get_file_data_timeout, MogileFS::Timeout do
+            sock = TCPSocket.new(path.host, path.port)
+            sock.sync = true
+            sock.syswrite("GET #{path.request_uri} HTTP/1.0\r\n\r\n")
+            buf = sock.recv(4096, Socket::MSG_PEEK)
+            head, body = buf.split(/\r\n\r\n/, 2)
+            head = sock.recv(head.size + 4)
           end
-        rescue MogileFS::Timeout
+
+          return block_given? ? yield(sock) : sock.read
+        rescue MogileFS::Timeout, Errno::ECONNREFUSED,
+               EOFError, SystemCallError
           next
         end
       else
