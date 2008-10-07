@@ -234,10 +234,11 @@ class MogileFS::MogileFS < MogileFS::Client
   ##
   # Returns the size of +key+.
   def size(key)
-    paths = get_paths key
+    paths = get_paths(key) or return nil
+    paths_size(paths)
+  end
 
-    return nil unless paths
-
+  def paths_size(paths)
     paths.each do |path|
       next unless path
       case path
@@ -264,7 +265,7 @@ class MogileFS::MogileFS < MogileFS::Client
       end
     end
 
-    return nil
+    nil
   end
 
   ##
