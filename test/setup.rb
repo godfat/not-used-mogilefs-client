@@ -21,6 +21,14 @@ class FakeBackend
     @lasterrstr = nil
   end
 
+  def error(err_snake)
+    err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase } << 'Error'
+    unless MogileFS::Backend.const_defined?(err_camel)
+      MogileFS::Backend.class_eval("class #{err_camel} < MogileFS::Error; end")
+    end
+    MogileFS::Backend.const_get(err_camel)
+  end
+
   def method_missing(meth, *args)
     meth = meth.to_s
     if meth =~ /(.*)=$/ then
@@ -31,6 +39,7 @@ class FakeBackend
       when Array then
         @lasterr = response.first
         @lasterrstr = response.last
+        raise error(@lasterr), @lasterrstr
         return nil
       end
       return response

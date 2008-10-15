@@ -66,10 +66,15 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_automatic_exception
-    assert ! MogileFS::Backend.const_defined?('NoDevicesError')
-    assert @backend.error('no_devices')
-    assert_equal MogileFS::Error, @backend.error('no_devices').superclass
-    assert MogileFS::Backend.const_defined?('NoDevicesError')
+    assert ! MogileFS::Backend.const_defined?('PebkacError')
+    assert @backend.error('pebkac')
+    assert_equal MogileFS::Error, @backend.error('PebkacError').superclass
+    assert MogileFS::Backend.const_defined?('PebkacError')
+
+    assert ! MogileFS::Backend.const_defined?('PebKacError')
+    assert @backend.error('peb_kac')
+    assert_equal MogileFS::Error, @backend.error('PebKacError').superclass
+    assert MogileFS::Backend.const_defined?('PebKacError')
   end
 
   def test_do_request_truncated
@@ -93,7 +98,15 @@ class TestBackend < Test::Unit::TestCase
   def test_parse_response
     assert_equal({'foo' => 'bar', 'baz' => 'hoge'},
                  @backend.parse_response('OK 1 foo=bar&baz=hoge'))
-    assert_equal nil, @backend.parse_response('ERR you totally suck')
+
+    err = nil
+    begin
+      @backend.parse_response('ERR you totally suck')
+    rescue MogileFS::Error => err
+      assert_equal 'MogileFS::Backend::YouError', err.class.to_s
+    end
+    assert_equal 'MogileFS::Backend::YouError', err.class.to_s
+
     assert_equal 'you', @backend.lasterr
     assert_equal 'totally suck', @backend.lasterrstr
 

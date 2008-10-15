@@ -18,31 +18,29 @@ class MogileFS::Backend
     end
   end
 
+  BACKEND_ERRORS = {}
+
   # this converts an error code from a mogilefsd tracker to an exception:
   #
   # Examples of some exceptions that get created:
   #   class AfterMismatchError < MogileFS::Error; end
   #   class DomainNotFoundError < MogileFS::Error; end
   #   class InvalidCharsError < MogileFS::Error; end
-  def error(err_snake)
+  def self.add_error(err_snake)
     err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase } << 'Error'
-    unless self.class.const_defined?(err_camel)
-      self.class.class_eval("class #{err_camel} < MogileFS::Error; end")
+    unless self.const_defined?(err_camel)
+      self.class_eval("class #{err_camel} < MogileFS::Error; end")
     end
-    self.class.const_get(err_camel)
+    BACKEND_ERRORS[err_snake] = self.const_get(err_camel)
   end
 
   ##
   # The last error
-  #--
-  # TODO Use Exceptions
 
   attr_reader :lasterr
 
   ##
   # The string attached to the last error
-  #--
-  # TODO Use Exceptions
 
   attr_reader :lasterrstr
 
@@ -106,6 +104,43 @@ class MogileFS::Backend
   add_command :delete_host
   add_command :set_state
 
+  # Errors copied from MogileFS/Worker/Query.pm
+  add_error 'dup'
+  add_error 'after_mismatch'
+  add_error 'bad_params'
+  add_error 'class_exists'
+  add_error 'class_has_files'
+  add_error 'class_not_found'
+  add_error 'db'
+  add_error 'domain_has_files'
+  add_error 'domain_exists'
+  add_error 'domain_not_empty'
+  add_error 'domain_not_found'
+  add_error 'failure'
+  add_error 'host_exists'
+  add_error 'host_mismatch'
+  add_error 'host_not_empty'
+  add_error 'host_not_found'
+  add_error 'invalid_chars'
+  add_error 'invalid_checker_level'
+  add_error 'invalid_mindevcount'
+  add_error 'key_exists'
+  add_error 'no_class'
+  add_error 'no_devices'
+  add_error 'no_domain'
+  add_error 'no_host'
+  add_error 'no_ip'
+  add_error 'no_key'
+  add_error 'no_port'
+  add_error 'none_match'
+  add_error 'plugin_aborted'
+  add_error 'state_too_high'
+  add_error 'unknown_command'
+  add_error 'unknown_host'
+  add_error 'unknown_key'
+  add_error 'unknown_state'
+  add_error 'unreg_domain'
+
   private unless defined? $TESTING
 
   ##
@@ -146,6 +181,14 @@ class MogileFS::Backend
     return "#{cmd} #{url_encode args}\r\n"
   end
 
+  # this converts an error code from a mogilefsd tracker to an exception
+  # Most of these exceptions should already be defined, but since the
+  # MogileFS server code is liable to change and we may not always be
+  # able to keep up with the changes
+  def error(err_snake)
+    BACKEND_ERRORS[err_snake] || self.class.add_error(err_snake)
+  end
+
   ##
   # Turns the +line+ response from the server into a Hash of options, an
   # error, or raises, as appropriate.
@@ -154,6 +197,7 @@ class MogileFS::Backend
     if line =~ /^ERR\s+(\w+)\s*(.*)/ then
       @lasterr = $1
       @lasterrstr = $2 ? url_unescape($2) : nil
+      raise error(@lasterr)
       return nil
     end
 

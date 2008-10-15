@@ -83,7 +83,9 @@ class TestMogileFS__MogileFS < TestMogileFS
   def test_get_paths_unknown_key
     @backend.get_paths = ['unknown_key', '']
 
-    assert_equal nil, @client.get_paths('key')
+    assert_raises MogileFS::Backend::UnknownKeyError do
+      assert_equal nil, @client.get_paths('key')
+    end
   end
 
   def test_delete_existing
@@ -95,8 +97,8 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_delete_nonexisting
     @backend.delete = 'unknown_key', ''
-    assert_nothing_raised do
-      assert_equal nil, @client.delete('no_such_key')
+    assert_raises MogileFS::Backend::UnknownKeyError do
+      @client.delete('no_such_key')
     end
   end
 
@@ -279,17 +281,19 @@ Content-Length: 0\r
   def test_rename_nonexisting
     @backend.rename = 'unknown_key', ''
 
-    assert_nil @client.rename('from_key', 'to_key')
+    assert_raises MogileFS::Backend::UnknownKeyError do
+      @client.rename('from_key', 'to_key')
+    end
   end
 
   def test_rename_no_key
-    @backend.rename = 'no_key', ''
+    @backend.rename = 'no_key', 'no_key'
 
-    e = assert_raises RuntimeError do
+    e = assert_raises MogileFS::Backend::NoKeyError do
       @client.rename 'new_key', 'test'
     end
 
-    assert_equal 'unable to rename new_key to test: no_key', e.message
+    assert_equal 'no_key', e.message
   end
 
   def test_rename_readonly

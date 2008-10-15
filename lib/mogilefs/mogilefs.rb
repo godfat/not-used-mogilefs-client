@@ -109,8 +109,6 @@ class MogileFS::MogileFS < MogileFS::Client
     noverify = noverify ? 1 : 0
     res = @backend.get_paths(:domain => @domain, :key => key,
                              :noverify => noverify, :zone => zone)
-    
-    return nil if res.nil? and @backend.lasterr == 'unknown_key'
     paths = (1..res['paths'].to_i).map { |i| res["path#{i}"] }
     return paths if paths.empty?
     return paths if paths.first =~ /^http:\/\//
@@ -127,8 +125,6 @@ class MogileFS::MogileFS < MogileFS::Client
 
     res = @backend.create_open(:domain => @domain, :class => klass,
                                :key => key, :multi_dest => 1)
-
-    raise "#{@backend.lasterr}: #{@backend.lasterrstr}" if res.nil? || res == {} # HACK
 
     dests = nil
 
@@ -200,11 +196,7 @@ class MogileFS::MogileFS < MogileFS::Client
   def delete(key)
     raise 'readonly mogilefs' if readonly?
 
-    res = @backend.delete :domain => @domain, :key => key
-
-    if res.nil? and @backend.lasterr != 'unknown_key' then
-      raise "unable to delete #{key}: #{@backend.lasterr}"
-    end
+    @backend.delete :domain => @domain, :key => key
   end
 
   ##
@@ -220,11 +212,8 @@ class MogileFS::MogileFS < MogileFS::Client
   def rename(from, to)
     raise 'readonly mogilefs' if readonly?
 
-    res = @backend.rename :domain => @domain, :from_key => from, :to_key => to
-
-    if res.nil? and @backend.lasterr != 'unknown_key' then
-      raise "unable to rename #{from} to #{to}: #{@backend.lasterr}"
-    end
+    @backend.rename :domain => @domain, :from_key => from, :to_key => to
+    nil
   end
 
   ##

@@ -38,8 +38,6 @@ class MogileFS::Client
 
   ##
   # The last error reported by the backend.
-  #--
-  # TODO use Exceptions
 
   def err
     @backend.lasterr
@@ -47,8 +45,6 @@ class MogileFS::Client
 
   ##
   # The last error message reported by the backend.
-  #--
-  # TODO use Exceptions
 
   def errstr
     @backend.lasterrstr
