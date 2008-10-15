@@ -65,6 +65,13 @@ class TestBackend < Test::Unit::TestCase
     assert_equal nil, @backend.instance_variable_get('@socket')
   end
 
+  def test_automatic_exception
+    assert ! MogileFS::Backend.const_defined?('NoDevicesError')
+    assert @backend.error('no_devices')
+    assert_equal MogileFS::Error, @backend.error('no_devices').superclass
+    assert MogileFS::Backend.const_defined?('NoDevicesError')
+  end
+
   def test_do_request_truncated
     socket_request = ''
     socket = Object.new

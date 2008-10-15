@@ -18,6 +18,20 @@ class MogileFS::Backend
     end
   end
 
+  # this converts an error code from a mogilefsd tracker to an exception:
+  #
+  # Examples of some exceptions that get created:
+  #   class AfterMismatchError < MogileFS::Error; end
+  #   class DomainNotFoundError < MogileFS::Error; end
+  #   class InvalidCharsError < MogileFS::Error; end
+  def error(err_snake)
+    err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase } << 'Error'
+    unless self.class.const_defined?(err_camel)
+      self.class.class_eval("class #{err_camel} < MogileFS::Error; end")
+    end
+    self.class.const_get(err_camel)
+  end
+
   ##
   # The last error
   #--
