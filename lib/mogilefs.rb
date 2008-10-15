@@ -11,7 +11,8 @@ module MogileFS
   ##
   # Raised when a socket remains unreadable for too long.
 
-  class UnreadableSocketError < RuntimeError; end
+  class Error < StandardError; end
+  class UnreadableSocketError < Error; end
 
 end
 
