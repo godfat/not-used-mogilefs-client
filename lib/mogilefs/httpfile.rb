@@ -12,8 +12,6 @@ require 'mogilefs/util'
 # You really don't want to create an HTTPFile by hand.  Instead you want to
 # create a new file using MogileFS::MogileFS.new_file.
 #
-# WARNING! HTTP mode is completely untested as I cannot make it work on
-# FreeBSD.  Please send patches/tests if you find bugs.
 #--
 # TODO dup'd content in MogileFS::NFSFile
 
