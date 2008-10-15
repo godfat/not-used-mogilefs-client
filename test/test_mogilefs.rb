@@ -104,7 +104,7 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_delete_readonly
     @client.readonly = true
-    assert_raises RuntimeError do
+    assert_raises MogileFS::ReadOnlyError do
       @client.delete 'no_such_key'
     end
   end
@@ -134,14 +134,14 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_new_file_http
     @client.readonly = true
-    assert_raises RuntimeError do
+    assert_raises MogileFS::ReadOnlyError do
       @client.new_file 'new_key', 'test'
     end
   end
 
   def test_new_file_readonly
     @client.readonly = true
-    assert_raises RuntimeError do
+    assert_raises MogileFS::ReadOnlyError do
       @client.new_file 'new_key', 'test'
     end
   end
@@ -260,14 +260,14 @@ Content-Length: 0\r
   def test_store_content_readonly
     @client.readonly = true
 
-    assert_raises RuntimeError do
+    assert_raises MogileFS::ReadOnlyError do
       @client.store_content 'new_key', 'test', nil
     end
   end
 
   def test_store_file_readonly
     @client.readonly = true
-    assert_raises RuntimeError do
+    assert_raises MogileFS::ReadOnlyError do
       @client.store_file 'new_key', 'test', nil
     end
   end
@@ -299,7 +299,7 @@ Content-Length: 0\r
   def test_rename_readonly
     @client.readonly = true
 
-    e = assert_raises RuntimeError do
+    e = assert_raises MogileFS::ReadOnlyError do
       @client.rename 'new_key', 'test'
     end
 

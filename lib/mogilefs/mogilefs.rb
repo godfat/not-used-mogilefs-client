@@ -121,7 +121,7 @@ class MogileFS::MogileFS < MogileFS::Client
   # The +block+ operates like File.open.
 
   def new_file(key, klass, bytes = 0, &block) # :yields: file
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
 
     res = @backend.create_open(:domain => @domain, :class => klass,
                                :key => key, :multi_dest => 1)
@@ -161,7 +161,7 @@ class MogileFS::MogileFS < MogileFS::Client
   # either a file name or an object that responds to #read.
 
   def store_file(key, klass, file)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
 
     new_file key, klass do |mfp|
       if file.respond_to? :sysread then
@@ -181,7 +181,7 @@ class MogileFS::MogileFS < MogileFS::Client
   # Stores +content+ into +key+ in class +klass+.
 
   def store_content(key, klass, content)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
 
     new_file key, klass do |mfp|
       mfp << content
@@ -194,7 +194,7 @@ class MogileFS::MogileFS < MogileFS::Client
   # Removes +key+.
 
   def delete(key)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
 
     @backend.delete :domain => @domain, :key => key
   end
@@ -210,7 +210,7 @@ class MogileFS::MogileFS < MogileFS::Client
   # Renames a key +from+ to key +to+.
 
   def rename(from, to)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
 
     @backend.rename :domain => @domain, :from_key => from, :to_key => to
     nil

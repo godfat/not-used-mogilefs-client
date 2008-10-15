@@ -155,7 +155,7 @@ class MogileFS::Admin < MogileFS::Client
   # Creates a new domain named +domain+.  Returns nil if creation failed.
 
   def create_domain(domain)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
     res = @backend.create_domain :domain => domain
     return res['domain'] unless res.nil?
   end
@@ -164,7 +164,7 @@ class MogileFS::Admin < MogileFS::Client
   # Deletes +domain+.  Returns true if successful, false if not.
 
   def delete_domain(domain)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
     res = @backend.delete_domain :domain => domain
     return !res.nil?
   end
@@ -216,7 +216,7 @@ class MogileFS::Admin < MogileFS::Client
   # Deletes host +host+.  Returns nil on failure.
 
   def delete_host(host)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
     res = @backend.delete_host :host => host
     return !res.nil?
   end
@@ -226,7 +226,7 @@ class MogileFS::Admin < MogileFS::Client
   # 'alive', 'down', or 'dead'.
 
   def change_device_state(host, device, state)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
     res = @backend.set_state :host => host, :device => device, :state => state
     return !res.nil?
   end
@@ -238,7 +238,7 @@ class MogileFS::Admin < MogileFS::Client
   # +action+.  Returns the class name if successful, nil if not.
 
   def modify_class(domain, klass, mindevcount, action)
-    raise 'readonly mogilefs' if readonly?
+    raise MogileFS::ReadOnlyError if readonly?
     res = @backend.send("#{action}_class", :domain => domain, :class => klass,
                                           :mindevcount => mindevcount)
 

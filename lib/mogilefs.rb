@@ -13,6 +13,11 @@ module MogileFS
 
   class Error < StandardError; end
   class UnreadableSocketError < Error; end
+  class ReadOnlyError < Error
+    def message
+      'readonly mogilefs'
+    end
+  end
 
 end
 
