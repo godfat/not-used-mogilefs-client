@@ -147,7 +147,7 @@ class MogileFS::MogileFS < MogileFS::Client
 
     case path
     when nil, '' then
-      raise 'Empty path for mogile upload'
+      raise EmptyPathError
     when /^http:\/\// then
       MogileFS::HTTPFile.open(self, res['fid'], path, devid, klass, key,
                               dests, bytes, &block)

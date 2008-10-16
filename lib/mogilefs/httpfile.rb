@@ -21,6 +21,9 @@ class MogileFS::HTTPFile < StringIO
   class EmptyResponseError < MogileFS::Error; end
   class BadResponseError < MogileFS::Error; end
   class UnparseableResponseError < MogileFS::Error; end
+  class NoStorageNodesError < MogileFS::Error
+    def message; 'Unable to open socket to storage node'; end
+  end
 
   ##
   # The path this file will be stored to.
@@ -138,7 +141,7 @@ class MogileFS::HTTPFile < StringIO
     if @path.nil? then
       @tried.clear
       next_path
-      raise 'Unable to open socket to storage node' if @path.nil?
+      raise NoStorageNodesError if @path.nil?
     end
 
     @socket = TCPSocket.new @path.host, @path.port

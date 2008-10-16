@@ -16,6 +16,9 @@ module MogileFS
   class ReadOnlyError < Error
     def message; 'readonly mogilefs'; end
   end
+  class EmptyPathError < Error
+    def message; 'Empty path for mogile upload'; end
+  end
 
   class RequestTruncatedError < Error; end
   class InvalidResponseError < Error; end
