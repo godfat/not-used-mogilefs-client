@@ -258,10 +258,12 @@ class MogileFS::MogileFS < MogileFS::Client
   # +after+ is nil the list starts at the beginning.
 
   def list_keys(prefix, after = nil, limit = 1000)
-    res = @backend.list_keys(:domain => domain, :prefix => prefix,
-                             :after => after, :limit => limit)
-
-    return nil if res.nil?
+    res = begin
+      @backend.list_keys(:domain => domain, :prefix => prefix,
+                         :after => after, :limit => limit)
+    rescue MogileFS::Backend::NoneMatchError
+      return nil
+    end
 
     keys = (1..res['key_count'].to_i).map { |i| res["key_#{i}"] }
 
