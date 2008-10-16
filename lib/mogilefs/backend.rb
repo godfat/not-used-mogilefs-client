@@ -161,11 +161,12 @@ class MogileFS::Backend
         bytes_sent = socket.send request, 0
       rescue SystemCallError
         @socket = nil
-        raise "couldn't connect to mogilefsd backend"
+        raise MogileFS::UnreachableBackendError
       end
 
       unless bytes_sent == request.length then
-        raise "request truncated (sent #{bytes_sent} expected #{request.length})"
+        raise MogileFS::RequestTruncatedError,
+          "request truncated (sent #{bytes_sent} expected #{request.length})"
       end
 
       readable?
@@ -203,7 +204,8 @@ class MogileFS::Backend
 
     return url_decode($1) if line =~ /^OK\s+\d*\s*(\S*)/
 
-    raise "Invalid response from server: #{line.inspect}"
+    raise MogileFS::InvalidResponseError,
+          "Invalid response from server: #{line.inspect}"
   end
 
   ##
@@ -240,7 +242,7 @@ class MogileFS::Backend
       return @socket
     end
 
-    raise "couldn't connect to mogilefsd backend"
+    raise MogileFS::UnreachableBackendError
   end
 
   ##

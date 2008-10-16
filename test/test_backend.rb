@@ -58,7 +58,7 @@ class TestBackend < Test::Unit::TestCase
 
     @backend.instance_variable_set '@socket', socket
 
-    assert_raises RuntimeError do
+    assert_raises MogileFS::UnreachableBackendError do
       @backend.do_request 'go!', { 'fight' => 'team fight!' }
     end
 
@@ -85,7 +85,7 @@ class TestBackend < Test::Unit::TestCase
 
     @backend.instance_variable_set '@socket', socket
 
-    assert_raises RuntimeError do
+    assert_raises MogileFS::RequestTruncatedError do
       @backend.do_request 'go!', { 'fight' => 'team fight!' }
     end
   end
@@ -110,7 +110,7 @@ class TestBackend < Test::Unit::TestCase
     assert_equal 'you', @backend.lasterr
     assert_equal 'totally suck', @backend.lasterrstr
 
-    assert_raises RuntimeError do
+    assert_raises MogileFS::InvalidResponseError do
       @backend.parse_response 'garbage'
     end
   end
@@ -143,7 +143,7 @@ class TestBackend < Test::Unit::TestCase
 
   def test_socket
     assert_equal({}, @backend.dead)
-    assert_raises RuntimeError do @backend.socket end
+    assert_raises MogileFS::UnreachableBackendError do @backend.socket end
     assert_equal(['localhost:1'], @backend.dead.keys)
   end
 

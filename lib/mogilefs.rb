@@ -14,9 +14,13 @@ module MogileFS
   class Error < StandardError; end
   class UnreadableSocketError < Error; end
   class ReadOnlyError < Error
-    def message
-      'readonly mogilefs'
-    end
+    def message; 'readonly mogilefs'; end
+  end
+
+  class RequestTruncatedError < Error; end
+  class InvalidResponseError < Error; end
+  class UnreachableBackendError < Error
+    def message; "couldn't connect to mogilefsd backend"; end
   end
 
 end
