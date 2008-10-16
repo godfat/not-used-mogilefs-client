@@ -101,9 +101,14 @@ def store_file_retry(mg, key, storage_class, filepath)
   tries = 0
   begin
     mg.store_file(key, storage_class, filepath)
-  rescue MogileFS::Backend::NoDevicesError => err
-    retry if ((tries += 1) < 10)
-    STDERR.puts "no devices available: #{err}"
+  rescue MogileFS::UnreadableSocketError,
+         MogileFS::Backend::NoDevicesError => err
+    if ((tries += 1) < 10)
+      STDERR.puts "Retrying on error: #{err}: #{err.message} tries: #{tries}"
+      retry
+    else
+      STDERR.puts "FATAL: #{err}: #{err.message} tries: #{tries}"
+    end
     exit 1
   end
 end
