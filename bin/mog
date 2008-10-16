@@ -14,6 +14,8 @@ def parse_config_file!(path, overwrite = false)
       dest[$1.to_sym] = $2
     elsif m = /^(?:trackers|hosts)\s*=\s*(.*)/.match(line)
       dest[:hosts] = $1.split(/\s*,\s*/)
+    elsif m = /^timeout\s*=\s*(.*)/.match(line)
+      dest[:timeout] = m[1].to_f
     else
       STDERR.puts "Ignored configuration line: #{line}" unless /^#/.match(line)
     end
@@ -91,6 +93,7 @@ unless cmd = ARGV.shift
   exit 1
 end
 
+cfg[:timeout] ||= 30 # longer timeout for interactive use
 include MogileFS::Util
 mg = MogileFS::MogileFS.new(cfg)
 
