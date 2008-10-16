@@ -203,6 +203,19 @@ data
     assert_empty TCPSocket.connections
   end
 
+  def test_store_content_http_fail
+    TCPSocket.sockets << FakeSocket.new('HTTP/1.0 500 Internal Server Error')
+
+    @backend.create_open = {
+      'devid' => '1',
+      'path' => 'http://example.com/path',
+    }
+
+    assert_raises MogileFS::HTTPFile::BadResponseError do
+      @client.store_content 'new_key', 'test', 'data'
+    end
+  end
+
   def test_store_content_http_empty
     socket = FakeSocket.new 'HTTP/1.0 200 OK'
 

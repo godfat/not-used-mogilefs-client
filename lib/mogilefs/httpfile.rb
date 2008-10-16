@@ -18,6 +18,10 @@ require 'mogilefs/util'
 class MogileFS::HTTPFile < StringIO
   include MogileFS::Util
 
+  class EmptyResponseError < MogileFS::Error; end
+  class BadResponseError < MogileFS::Error; end
+  class UnparseableResponseError < MogileFS::Error; end
+
   ##
   # The path this file will be stored to.
 
@@ -95,17 +99,19 @@ class MogileFS::HTTPFile < StringIO
 
     if connected? then
       line = @socket.gets
-      raise 'Unable to read response line from server' if line.nil?
+      if line.nil?
+        raise EmptyResponseError, 'Unable to read response line from server'
+      end
 
       if line =~ %r%^HTTP/\d+\.\d+\s+(\d+)% then
         status = Integer $1
         case status
         when 200..299 then # success!
         else
-          raise "HTTP response status from upload: #{status}"
+          raise BadResponseError, "HTTP response status from upload: #{status}"
         end
       else
-        raise "Response line not understood: #{line}"
+        raise InvalidResponseError, "Response line not understood: #{line}"
       end
 
       @socket.close
