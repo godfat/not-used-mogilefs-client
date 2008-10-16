@@ -73,8 +73,10 @@ class MogileFS::Backend
   # Closes this backend's socket.
 
   def shutdown
-    @socket.close unless @socket.nil? or @socket.closed?
-    @socket = nil
+    if @socket
+      @socket.close rescue nil # ignore errors
+      @socket = nil
+    end
   end
 
   # MogileFS::MogileFS commands
@@ -160,7 +162,7 @@ class MogileFS::Backend
       begin
         bytes_sent = socket.send request, 0
       rescue SystemCallError
-        @socket = nil
+        shutdown
         raise MogileFS::UnreachableBackendError
       end
 
@@ -215,7 +217,12 @@ class MogileFS::Backend
     found = select [socket], nil, nil, @timeout
     if found.nil? or found.empty? then
       peer = (@socket ? "#{@socket.peeraddr[3]}:#{@socket.peeraddr[1]} " : nil)
-      socket.close  # we DO NOT want the response we timed out waiting for, to crop up later on, on the same socket, intersperesed with a subsequent request! so, we close the socket if it times out like this
+
+      # we DO NOT want the response we timed out waiting for, to crop up later
+      # on, on the same socket, intersperesed with a subsequent request! so, we
+      # close the socket if it times out like this
+      shutdown
+
       raise MogileFS::UnreadableSocketError, "#{peer}never became readable"
     end
     return true
