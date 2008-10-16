@@ -97,6 +97,17 @@ cfg[:timeout] ||= 30 # longer timeout for interactive use
 include MogileFS::Util
 mg = MogileFS::MogileFS.new(cfg)
 
+def store_file_retry(mg, key, storage_class, filepath)
+  tries = 0
+  begin
+    mg.store_file(key, storage_class, filepath)
+  rescue MogileFS::Backend::NoDevicesError => err
+    retry if ((tries += 1) < 10)
+    STDERR.puts "no devices available: #{err}"
+    exit 1
+  end
+end
+
 begin
   case cmd
   when 'cp'
@@ -104,7 +115,7 @@ begin
     key = ARGV.shift or raise ArgumentError, '<filename> <key>'
     ARGV.shift and raise ArgumentError, '<filename> <key>'
     cfg[:class] or raise ArgumentError, 'E: --class must be specified'
-    mg.store_file(key, cfg[:class], filename)
+    store_file_retry(mg, key, cfg[:class], filename)
   when 'cat'
     ARGV.empty? and raise ArgumentError, '<key1> [<key2> ...]'
     ARGV.each { |key| mg.get_file_data(key) { |fp| sysrwloop(fp, STDOUT) } }
@@ -165,7 +176,7 @@ begin
     at_exit { tmp.unlink }
     begin
       sysrwloop(STDIN, tmp)
-      mg.store_file(key, cfg[:class], tmp.path)
+      store_file_retry(mg, key, cfg[:class], tmp.path)
     ensure
       tmp.close
     end
