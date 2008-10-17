@@ -10,6 +10,7 @@ lib/mogilefs/backend.rb
 lib/mogilefs/client.rb
 lib/mogilefs/httpfile.rb
 lib/mogilefs/mogilefs.rb
+lib/mogilefs/mysql.rb
 lib/mogilefs/nfsfile.rb
 lib/mogilefs/pool.rb
 lib/mogilefs/util.rb
