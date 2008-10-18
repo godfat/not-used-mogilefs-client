@@ -127,15 +127,18 @@ class TestBackend < Test::Unit::TestCase
   def test_readable_eh_not_readable
     socket = FakeSocket.new
     def socket.closed?() false end
-    def @backend.select(*args) return [] end
+    def @backend.select(r=nil, w=nil, e=nil, t=1)
+      Kernel.sleep(t.to_f + 0.1)
+      []
+    end
     @backend.instance_variable_set '@socket', socket
 
     begin
       @backend.readable?
     rescue MogileFS::UnreadableSocketError => e
       assert_equal '127.0.0.1:6001 never became readable', e.message
-    rescue Exception
-      flunk "MogileFS::UnreadableSocketError not raised"
+    rescue Exception => err
+      flunk "MogileFS::UnreadableSocketError not raised #{err} #{err.backtrace}"
     else
       flunk "MogileFS::UnreadableSocketError not raised"
     end
