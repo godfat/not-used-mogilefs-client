@@ -66,7 +66,7 @@ class MogileFS::Mysql
     EOS
 
     res = @my.c_async_query(sql).fetch_row
-    return res[0] if res && res[0]
+    return res[0].to_i if res && res[0]
     raise MogileFS::Backend::UnknownKeyError
   end
 
