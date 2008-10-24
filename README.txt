@@ -14,6 +14,15 @@ File bugs:
 
 http://rubyforge.org/tracker/?func=add&group_id=1513&atid=5921
 
+Source repository (git):
+
+git://git.bogomips.org/mogilefs-client.git
+http://git.bogomips.org/mogilefs-client.git
+
+Repository browser (cgit):
+
+http://git.bogomips.org/cgit/mogilefs-client.git
+
 == About
 
 A Ruby MogileFS client.  MogileFS is a distributed filesystem written
@@ -60,7 +69,6 @@ Then install the gem:
 
 == WARNING!
 
-This client is only known to work in NFS mode.  HTTP mode is implemented but
-only lightly tested in production environments.  If you find a bug,
-please report it on the Rubyforge project.
-
+This client is only supported in HTTP mode.  NFS mode was previously
+supported but since MogileFS 2.x has dropped support for NFS, do not
+expect it to remain working forever.
