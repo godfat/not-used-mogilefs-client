@@ -15,7 +15,13 @@ class MogileFS::Mysql
     @domain = param[:domain]
     @my = Mysql.new(param[:host], param[:user], param[:passwd],
                     param[:db], param[:port], param[:sock], param[:flag])
-    @my.reconnect = true
+    @my.reconnect = param[:reconnect] if param.include?(:reconnect)
+    @my.options(Mysql::OPT_CONNECT_TIMEOUT,
+                param[:connect_timeout] ? param[:connect_timeout] : 1)
+    @my.options(Mysql::OPT_READ_TIMEOUT,
+                param[:read_timeout] ? param[:read_timeout] : 1)
+    @my.options(Mysql::OPT_WRITE_TIMEOUT,
+                param[:write_timeout] ? param[:write_timeout] : 1)
     @last_update_device = @last_update_domain = Time.at(0)
     @cache_domain = @cache_device = nil
   end
