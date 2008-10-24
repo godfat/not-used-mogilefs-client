@@ -44,8 +44,9 @@ Then install the gem:
 
   # Create a new instance that will communicate with these trackers:
   hosts = %w[192.168.1.69:6001 192.168.1.70:6001]
-  mg = MogileFS::MogileFS.new(:domain => 'test', :hosts => hosts
-                              :root => '/mnt/mogilefs')
+  mg = MogileFS::MogileFS.new(:domain => 'test', :hosts => hosts)
+
+  # NFS requires the :root parameter (e.g. :root => '/mnt/mogilefs')
   
   # Stores "A bunch of text to store" into 'some_key' with a class of 'text'.
   mg.store_content 'some_key', 'text', "A bunch of text to store"
