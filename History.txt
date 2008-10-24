@@ -6,6 +6,7 @@
 * more consistent handling of bad sockets
 * remove open-uri and net/http dependencies, they were bad with large files
 * add paths_size() method, allowing single mogilefsd call to get size and paths
+* add read-only MogileFS::Mysql driver, allowing mogilefsd to be bypassed
 
 = 1.3.1
 
