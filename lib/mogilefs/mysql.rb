@@ -11,21 +11,33 @@ class MogileFS::Mysql
   attr_accessor :domain
   attr_reader :my
 
-  def initialize(param = {})
-    @domain = param[:domain]
-    @my = Mysql.new(param[:host], param[:user], param[:passwd],
-                    param[:db], param[:port], param[:sock], param[:flag])
-    @my.reconnect = param[:reconnect] if param.include?(:reconnect)
+  ##
+  # Creates a new MogileFS::Mysql instance.  +args+ must include a key
+  # :domain specifying the domain of this client.  Further arguments
+  # that are specific (and passed directly) to Mysql include:
+  #   :host, :user, :passwd, :db, :port, :sock, :flag
+  # :reconnect is on by default and will enable the auto-reconnect
+  # behavior of the underlying Mysql driver.
+  # The :connect_timeout, :read_timeout, :write_timeout options
+  # allow changing the various timeouts of the underlying Mysql driver
+  def initialize(args = {})
+    @domain = args[:domain]
+    @my = Mysql.new(args[:host], args[:user], args[:passwd],
+                    args[:db], args[:port], args[:sock], args[:flag])
+    @my.reconnect = args[:reconnect] if args.include?(:reconnect)
     @my.options(Mysql::OPT_CONNECT_TIMEOUT,
-                param[:connect_timeout] ? param[:connect_timeout] : 1)
+                args[:connect_timeout] ? args[:connect_timeout] : 1)
     @my.options(Mysql::OPT_READ_TIMEOUT,
-                param[:read_timeout] ? param[:read_timeout] : 1)
+                args[:read_timeout] ? args[:read_timeout] : 1)
     @my.options(Mysql::OPT_WRITE_TIMEOUT,
-                param[:write_timeout] ? param[:write_timeout] : 1)
+                args[:write_timeout] ? args[:write_timeout] : 1)
     @last_update_device = @last_update_domain = Time.at(0)
     @cache_domain = @cache_device = nil
   end
 
+  ##
+  # Lists keys starting with +prefix+ follwing +after+ up to +limit+.  If
+  # +after+ is nil the list starts at the beginning.
   def list_keys(prefix, after = '', limit = 1000, &block)
     # this code is based on server/lib/MogileFS/Worker/Query.pm
     dmid = refresh_domain[@domain] or \
@@ -61,6 +73,8 @@ class MogileFS::Mysql
     return [ keys, keys.last || '']
   end
 
+  ##
+  # Returns the size of +key+.
   def size(key)
     dmid = refresh_domain[@domain] or \
       raise MogileFS::Backend::DomainNotFoundError
@@ -76,6 +90,8 @@ class MogileFS::Mysql
     raise MogileFS::Backend::UnknownKeyError
   end
 
+  ##
+  # Get the paths for +key+.
   def get_paths(key, noverify = true, zone = nil)
     dmid = refresh_domain[@domain] or \
       raise MogileFS::Backend::DomainNotFoundError
