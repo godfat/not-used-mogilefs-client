@@ -13,7 +13,12 @@ module MogileFS::Util
     io_wr.sync = true
     loop do
       begin
-        b = io_rd.sysread(CHUNK_SIZE, buf)
+        b = begin
+          io_rd.sysread(CHUNK_SIZE, buf)
+        rescue Errno::EAGAIN, Errno::EINTR
+          select([io_rd], nil, nil, nil)
+          retry
+        end
         b = filter.call(b) if filter
         copied += syswrite_full(io_wr, b)
       rescue EOFError
@@ -86,7 +91,12 @@ module MogileFS::Util
     def syswrite_full(io_wr, buf)
       written = 0
       loop do
-        w = io_wr.syswrite(buf)
+        w = begin
+          io_wr.syswrite(buf)
+        rescue Errno::EAGAIN, Errno::EINTR
+          select(nil, [io_wr], nil, nil)
+          retry
+        end
         written += w
         break if w == buf.size
         buf = buf[w..-1]
