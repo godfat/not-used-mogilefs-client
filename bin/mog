@@ -179,8 +179,13 @@ begin
     buf = ''
     tmp = Tempfile.new('mog-tee') # TODO: explore Transfer-Encoding:chunked :)
     at_exit { tmp.unlink }
+
+    # if stdout is pointing to /dev/null, don't bother installing the filter.
+    STDOUT.sync = true
+    tee_filter = File.stat('/dev/null') == STDOUT.stat ?
+                 nil : Proc.new { |buf| STDOUT.write(buf); buf }
     begin
-      sysrwloop(STDIN, tmp)
+      sysrwloop(STDIN, tmp, tee_filter)
       store_file_retry(mg, key, cfg[:class], tmp.path)
     ensure
       tmp.close
