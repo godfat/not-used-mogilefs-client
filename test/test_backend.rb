@@ -8,8 +8,12 @@ require 'mogilefs/backend'
 class MogileFS::Backend
 
   attr_accessor :hosts
-  attr_reader :timeout, :dead
+  attr_reader :dead
   attr_writer :lasterr, :lasterrstr, :socket
+
+  def ivar_timeout
+    @timeout
+  end
 
 end
 
@@ -27,13 +31,13 @@ class TestBackend < Test::Unit::TestCase
     assert_raises ArgumentError do MogileFS::Backend.new :hosts => [''] end
 
     assert_equal ['localhost:1'], @backend.hosts
-    assert_equal 3, @backend.timeout
+    assert_equal 3, @backend.ivar_timeout
     assert_equal nil, @backend.lasterr
     assert_equal nil, @backend.lasterrstr
     assert_equal({}, @backend.dead)
 
     @backend = MogileFS::Backend.new :hosts => ['localhost:6001'], :timeout => 1
-    assert_equal 1, @backend.timeout
+    assert_equal 1, @backend.ivar_timeout
   end
 
   def test_do_request

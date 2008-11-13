@@ -17,7 +17,7 @@ class TestClient < Test::Unit::TestCase
     assert_equal ['kaa:6001'], client.hosts
 
     client = MogileFS::Client.new :hosts => ['kaa:6001'], :timeout => 5
-    assert_equal 5, client.backend.timeout
+    assert_equal 5, client.backend.ivar_timeout
   end
 
   def test_err

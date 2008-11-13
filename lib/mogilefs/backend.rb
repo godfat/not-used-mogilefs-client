@@ -149,7 +149,9 @@ class MogileFS::Backend
   # Returns a new TCPSocket connected to +port+ on +host+.
 
   def connect_to(host, port)
-    return TCPSocket.new(host, port)
+    return timeout(@timeout, MogileFS::Timeout){
+      TCPSocket.new(host, port)
+    }
   end
 
   ##
@@ -250,7 +252,7 @@ class MogileFS::Backend
 
       begin
         @socket = connect_to(*host.split(':'))
-      rescue SystemCallError
+      rescue SystemCallError, MogileFS::Timeout
         @dead[host] = now
         next
       end
