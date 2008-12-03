@@ -13,6 +13,8 @@ module MogileFS
 
   class Error < StandardError; end
   class UnreadableSocketError < Error; end
+  class SizeMismatchError < Error; end
+  class ChecksumMismatchError < RuntimeError; end
   class ReadOnlyError < Error
     def message; 'readonly mogilefs'; end
   end
@@ -34,6 +36,7 @@ require 'mogilefs/backend'
 require 'mogilefs/nfsfile'
 require 'mogilefs/httpfile'
 require 'mogilefs/client'
+require 'mogilefs/bigfile'
 require 'mogilefs/mogilefs'
 require 'mogilefs/admin'
 

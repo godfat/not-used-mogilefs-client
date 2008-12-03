@@ -16,6 +16,7 @@ class MogileFS::Timeout < Timeout::Error; end
 class MogileFS::MogileFS < MogileFS::Client
 
   include MogileFS::Util
+  include MogileFS::Bigfile
 
   ##
   # The path to the local MogileFS mount point if you are using NFS mode.

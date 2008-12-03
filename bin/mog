@@ -33,6 +33,7 @@ config_file = nil
 ls_l = false
 ls_h = false
 test = {}
+cat = { :raw => false }
 
 ARGV.options do |x|
   x.banner = "Usage: #{$0} [options] <command> [<arguments>]"
@@ -47,6 +48,7 @@ ARGV.options do |x|
   end
 
   x.on('-e', 'True if key exists') { test[:e] = true }
+  x.on('-r', '--raw', 'show raw big_info file information') { cat[:raw] = true }
 
   x.on('-C', '--class=s', 'class') { |klass| cli_cfg[:class] = klass }
   x.on('-d', '--domain=s', 'domain') { |domain| cli_cfg[:domain] = domain }
@@ -123,7 +125,13 @@ begin
     store_file_retry(mg, key, cfg[:class], filename)
   when 'cat'
     ARGV.empty? and raise ArgumentError, '<key1> [<key2> ...]'
-    ARGV.each { |key| mg.get_file_data(key) { |fp| sysrwloop(fp, STDOUT) } }
+    ARGV.each do |key|
+      if (!cat[:raw] && key =~ /^_big_info:/)
+        mg.bigfile_write(key, STDOUT, {:verify => true})
+      else
+        mg.get_file_data(key) { |fp| sysrwloop(fp, STDOUT) }
+      end
+    end
   when 'ls'
     prefixes = ARGV.empty? ? [ nil ] : ARGV
     prefixes.each do |prefix|
