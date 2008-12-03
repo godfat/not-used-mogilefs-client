@@ -29,7 +29,7 @@ module MogileFS::Util
     # filter must take nil as a possible argument to indicate EOF
     if filter
       b = filter.call(nil)
-      copied += syswrite_full(io_wr, b) if b && b.length
+      copied += syswrite_full(io_wr, b) if b && b.length > 0
     end
     copied
   end # sysrwloop
