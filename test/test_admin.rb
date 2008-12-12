@@ -19,7 +19,7 @@ class TestMogileFS__Admin < TestMogileFS
            "host1_status"=>"alive",
            "host1_altmask"=>""}
     actual = @client.clean 'hosts', 'host', res
-  
+
     expected = [{"status"=>"alive",
                  "http_get_port"=>"",
                  "http_port"=>"",
@@ -119,7 +119,7 @@ class TestMogileFS__Admin < TestMogileFS
       'file' => [{ 'files' => '2', 'class' => 'normal', 'domain' => 'test' }]
     }
 
-    assert_equal 
+    assert_equal
   end
 
   def test_get_stats_fids
