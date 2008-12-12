@@ -1,6 +1,5 @@
 require 'mogilefs'
 require 'mogilefs/backend' # for the exceptions
-require 'mysql'
 
 # read-only interface that looks like MogileFS::MogileFS This provides
 # direct, read-only access to any slave MySQL database to provide better
@@ -10,27 +9,18 @@ class MogileFS::Mysql
 
   attr_accessor :domain
   attr_reader :my
+  attr_reader :query_method
 
   ##
   # Creates a new MogileFS::Mysql instance.  +args+ must include a key
-  # :domain specifying the domain of this client.  Further arguments
-  # that are specific (and passed directly) to Mysql include:
-  #   :host, :user, :passwd, :db, :port, :sock, :flag
-  # :reconnect is on by default and will enable the auto-reconnect
-  # behavior of the underlying Mysql driver.
-  # The :connect_timeout, :read_timeout, :write_timeout options
-  # allow changing the various timeouts of the underlying Mysql driver
+  # :domain specifying the domain of this client and :mysql, specifying
+  # an already-initialized Mysql object.
+  #
+  # The Mysql object can be either the standard Mysql driver or the
+  # Mysqlplus one supporting c_async_query.
   def initialize(args = {})
-    @domain = args[:domain]
-    @my = Mysql.new(args[:host], args[:user], args[:passwd],
-                    args[:db], args[:port], args[:sock], args[:flag])
-    @my.reconnect = args[:reconnect] if args.include?(:reconnect)
-    @my.options(Mysql::OPT_CONNECT_TIMEOUT,
-                args[:connect_timeout] ? args[:connect_timeout] : 1)
-    @my.options(Mysql::OPT_READ_TIMEOUT,
-                args[:read_timeout] ? args[:read_timeout] : 1)
-    @my.options(Mysql::OPT_WRITE_TIMEOUT,
-                args[:write_timeout] ? args[:write_timeout] : 1)
+    @domain, @my = args[:domain], args[:mysql]
+    @query_method = @my.respond_to?(:c_async_query) ? :c_async_query : :query
     @last_update_device = @last_update_domain = Time.at(0)
     @cache_domain = @cache_device = nil
   end
@@ -66,7 +56,7 @@ class MogileFS::Mysql
     EOS
 
     keys = []
-    @my.c_async_query(sql).each do |dkey,length,devcount|
+    query(sql).each do |dkey,length,devcount|
       yield(dkey, length, devcount) if block_given?
       keys << dkey
     end
@@ -85,7 +75,7 @@ class MogileFS::Mysql
     LIMIT 1
     EOS
 
-    res = @my.c_async_query(sql).fetch_row
+    res = query(sql).fetch_row
     return res[0].to_i if res && res[0]
     raise MogileFS::Backend::UnknownKeyError
   end
@@ -103,11 +93,11 @@ class MogileFS::Mysql
     LIMIT 1
     EOS
 
-    res = @my.c_async_query(sql).fetch_row
+    res = query(sql).fetch_row
     res && res[0] or raise MogileFS::Backend::UnknownKeyError
     fid = res[0]
     sql = "SELECT devid FROM file_on WHERE fid = '#{@my.quote(fid)}'"
-    @my.c_async_query(sql).each do |devid,|
+    query(sql).each do |devid,|
       devinfo = devices[devid.to_i]
       port = devinfo[:http_get_port] || devinfo[:http_port] || 80
       host = zone && zone == 'alt' ? devinfo[:altip] : devinfo[:hostip]
@@ -131,10 +121,14 @@ class MogileFS::Mysql
       GET_DEVICES.freeze
     end
 
+    def query(sql)
+      @my.send(@query_method, sql)
+    end
+
     def refresh_device(force = false)
       return @cache_device if ! force && ((Time.now - @last_update_device) < 60)
       tmp = {}
-      res = @my.c_async_query(GET_DEVICES)
+      res = query(GET_DEVICES)
       res.each do |devid, hostip, altip, http_port, http_get_port|
         tmp[devid.to_i] = {
           :hostip => hostip.freeze,
@@ -150,7 +144,7 @@ class MogileFS::Mysql
     def refresh_domain(force = false)
       return @cache_domain if ! force && ((Time.now - @last_update_domain) < 5)
       tmp = {}
-      res = @my.c_async_query('SELECT dmid,namespace FROM domain')
+      res = query('SELECT dmid,namespace FROM domain')
       res.each { |dmid,namespace| tmp[namespace] = dmid.to_i }
       @last_update_domain = Time.now
       @cache_domain = tmp.freeze
