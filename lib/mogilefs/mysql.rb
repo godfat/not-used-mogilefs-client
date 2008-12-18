@@ -28,7 +28,7 @@ class MogileFS::Mysql
   ##
   # Lists keys starting with +prefix+ follwing +after+ up to +limit+.  If
   # +after+ is nil the list starts at the beginning.
-  def list_keys(prefix, after = '', limit = 1000, &block)
+  def list_keys(prefix = '', after = '', limit = 1000, &block)
     # this code is based on server/lib/MogileFS/Worker/Query.pm
     dmid = refresh_domain[@domain] or \
       raise MogileFS::Backend::DomainNotFoundError
@@ -60,7 +60,7 @@ class MogileFS::Mysql
       yield(dkey, length, devcount) if block_given?
       keys << dkey
     end
-    return [ keys, keys.last || '']
+    [ keys, (keys.last || '') ]
   end
 
   ##
@@ -99,7 +99,7 @@ class MogileFS::Mysql
     sql = "SELECT devid FROM file_on WHERE fid = '#{@my.quote(fid)}'"
     query(sql).each do |devid,|
       devinfo = devices[devid.to_i]
-      port = devinfo[:http_get_port] || devinfo[:http_port] || 80
+      port = devinfo[:http_get_port]
       host = zone && zone == 'alt' ? devinfo[:altip] : devinfo[:hostip]
       nfid = '%010u' % fid
       b, mmm, ttt = /(\d)(\d{3})(\d{3})(?:\d{3})/.match(nfid)[1..3]
@@ -112,6 +112,8 @@ class MogileFS::Mysql
   private
 
     unless defined? GET_DEVICES
+      GET_DOMAINS = 'SELECT dmid,namespace FROM domain'.freeze
+
       GET_DEVICES = <<-EOS
         SELECT d.devid, h.hostip, h.altip, h.http_port, h.http_get_port
         FROM device d
@@ -130,11 +132,12 @@ class MogileFS::Mysql
       tmp = {}
       res = query(GET_DEVICES)
       res.each do |devid, hostip, altip, http_port, http_get_port|
+        http_port = http_port ? http_port.to_i : 80
         tmp[devid.to_i] = {
           :hostip => hostip.freeze,
-          :altip => altip.freeze,
-          :http_port => http_port ? http_port.to_i : nil,
-          :http_get_port => http_get_port ? http_get_port.to_i : nil,
+          :altip => (altip || hostip).freeze,
+          :http_port => http_port,
+          :http_get_port => http_get_port ?  http_get_port.to_i : http_port,
         }.freeze
       end
       @last_update_device = Time.now
@@ -144,7 +147,7 @@ class MogileFS::Mysql
     def refresh_domain(force = false)
       return @cache_domain if ! force && ((Time.now - @last_update_domain) < 5)
       tmp = {}
-      res = query('SELECT dmid,namespace FROM domain')
+      res = query(GET_DOMAINS)
       res.each { |dmid,namespace| tmp[namespace] = dmid.to_i }
       @last_update_domain = Time.now
       @cache_domain = tmp.freeze
