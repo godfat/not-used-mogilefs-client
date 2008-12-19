@@ -127,4 +127,32 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     assert_equal 456, @mg.size('foo')
   end
 
+  def test_store_file_readonly
+    assert_raises(MogileFS::ReadOnlyError) do
+      @mg.store_file 'new_key', 'test', '/dev/null'
+    end
+  end
+
+  def test_store_content_readonly
+    assert_raises(MogileFS::ReadOnlyError) do
+      @mg.store_content 'new_key', 'test', 'data'
+    end
+  end
+
+  def test_new_file_readonly
+    assert_raises(MogileFS::ReadOnlyError) { @mg.new_file 'new_key', 'test' }
+  end
+
+  def test_rename_readonly
+    assert_raises(MogileFS::ReadOnlyError) { @mg.rename 'a', 'b' }
+  end
+
+  def test_delete_readonly
+    assert_raises(MogileFS::ReadOnlyError) { @mg.delete 'no_such_key' }
+  end
+
+  def test_sleep
+    assert_nothing_raised { assert_equal({}, @mg.sleep(1)) }
+  end
+
 end

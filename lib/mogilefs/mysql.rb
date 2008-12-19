@@ -109,6 +109,16 @@ class MogileFS::Mysql
     urls
   end
 
+  def readonly=(unused); true; end
+  def readonly; true; end
+  def readonly?; true; end
+  def store_file(key, klass, file); raise MogileFS::ReadOnlyError; end
+  def store_content(key, klass, content); raise MogileFS::ReadOnlyError; end
+  def new_file(key, klass, bytes=0, &block); raise MogileFS::ReadOnlyError; end
+  def rename(from, to); raise MogileFS::ReadOnlyError; end
+  def delete(key); raise MogileFS::ReadOnlyError; end
+  def sleep(duration); Kernel.sleep(duration || 10); {}; end
+
   private
 
     unless defined? GET_DEVICES
