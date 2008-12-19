@@ -119,6 +119,11 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     assert_equal expect_full, full
   end
 
+  def test_list_keys_empty
+    @my.expect << []
+    assert_nil @mg.list_keys
+  end
+
   def test_size
     @my.expect << [ [ '123' ] ]
     assert_equal 123, @mg.size('foo')

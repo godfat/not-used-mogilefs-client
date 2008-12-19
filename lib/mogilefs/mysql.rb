@@ -60,7 +60,8 @@ class MogileFS::Mysql
       yield(dkey, length, devcount) if block_given?
       keys << dkey
     end
-    [ keys, (keys.last || '') ]
+
+    keys.empty? ? nil : [ keys, (keys.last || '') ]
   end
 
   ##
