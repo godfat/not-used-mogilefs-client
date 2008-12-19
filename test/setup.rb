@@ -165,3 +165,43 @@ class TestMogileFS < Test::Unit::TestCase
 
 end
 
+# for our mock results
+class Array
+  alias_method :fetch_row, :shift
+end
+
+class FakeMysql
+  attr_reader :expect
+  TBL_DEVICES = [
+    # devid, hostip,    altip,         http_port, http_get_port
+    [ 1,    '10.0.0.1', '192.168.0.1', 7500,      7600 ],
+    [ 2,    '10.0.0.2', '192.168.0.2', 7500,      7600 ],
+    [ 3,    '10.0.0.3', nil,           7500,      nil ],
+    [ 4,    '10.0.0.4', nil,           7500,      nil ],
+  ]
+  TBL_DOMAINS = [
+    # dmid, namespace
+    [ 1, 'test' ],
+    [ 2, 'foo' ],
+  ]
+
+  def initialize
+    @expect = []
+  end
+
+  def quote(str)
+    str.to_s.gsub(/\\/, '\&\&').gsub(/'/, "''")
+  end
+
+  def query(sql = '')
+    case sql
+    when MogileFS::Mysql::GET_DEVICES then TBL_DEVICES
+    when MogileFS::Mysql::GET_DOMAINS then TBL_DOMAINS
+    else
+      @expect.shift
+    end
+  end
+
+end
+
+
