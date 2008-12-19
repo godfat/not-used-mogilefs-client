@@ -1,7 +1,6 @@
 require 'zlib'
 require 'digest/md5'
 require 'uri'
-Thread.abort_on_exception = true
 
 module MogileFS::Bigfile
   GZIP_HEADER = "\x1f\x8b".freeze # mogtool(1) has this
