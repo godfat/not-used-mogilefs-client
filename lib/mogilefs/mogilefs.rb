@@ -46,7 +46,11 @@ class MogileFS::MogileFS < MogileFS::Client
 
     raise ArgumentError, "you must specify a domain" unless @domain
 
-    super
+    if @backend = args[:db_backend]
+      @readonly = true
+    else
+      super
+    end
   end
 
   ##
@@ -210,6 +214,7 @@ class MogileFS::MogileFS < MogileFS::Client
   ##
   # Returns the size of +key+.
   def size(key)
+    @backend.respond_to?(:_size) and return @backend._size(domain, key)
     paths = get_paths(key) or return nil
     paths_size(paths)
   end
@@ -248,7 +253,11 @@ class MogileFS::MogileFS < MogileFS::Client
   # Lists keys starting with +prefix+ follwing +after+ up to +limit+.  If
   # +after+ is nil the list starts at the beginning.
 
-  def list_keys(prefix, after = nil, limit = 1000)
+  def list_keys(prefix, after = nil, limit = 1000, &block)
+    if @backend.respond_to?(:_list_keys)
+      return @backend._list_keys(domain, prefix, after, limit, &block)
+    end
+
     res = begin
       @backend.list_keys(:domain => domain, :prefix => prefix,
                          :after => after, :limit => limit)
@@ -257,6 +266,14 @@ class MogileFS::MogileFS < MogileFS::Client
     end
 
     keys = (1..res['key_count'].to_i).map { |i| res["key_#{i}"] }
+    if block_given?
+      # emulate the MogileFS::Mysql interface, slowly...
+      keys.each do |key|
+        paths = get_paths(key) or next
+        length = paths_size(paths) or next
+        yield key, length, paths.size
+      end
+    end
 
     return keys, res['next_after']
   end

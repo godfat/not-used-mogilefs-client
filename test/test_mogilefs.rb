@@ -132,6 +132,28 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_equal 'new_key_2', next_after
   end
 
+  def test_list_keys_block
+    @backend.list_keys = { 'key_count' => 2, 'next_after' => 'new_key_2',
+                           'key_1' => 'new_key_1', 'key_2' => 'new_key_2' }
+    http_resp = "HTTP/1.0 200 OK\r\nContent-Length: %u\r\n"
+    TCPSocket.sockets << FakeSocket.new(http_resp % 10)
+    TCPSocket.sockets << FakeSocket.new(http_resp % 5)
+
+    @backend.get_paths = { 'paths' => 2, 'path1' => 'http://a',
+                           'path2' => 'http://b' }
+    @backend.get_paths = { 'paths' => 1, 'path1' => 'http://c' }
+
+    res = []
+    keys, next_after = @client.list_keys('new') do |key,length,devcount|
+      res << [ key, length, devcount ]
+    end
+
+    expect_res = [ [ 'new_key_1', 5, 2 ], [ 'new_key_2', 10, 1 ] ]
+    assert_equal expect_res, res
+    assert_equal ['new_key_1', 'new_key_2'], keys.sort
+    assert_equal 'new_key_2', next_after
+  end
+
   def test_new_file_http
     @client.readonly = true
     assert_raises MogileFS::ReadOnlyError do
