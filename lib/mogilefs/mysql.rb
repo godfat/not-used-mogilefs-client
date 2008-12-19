@@ -1,13 +1,13 @@
 require 'mogilefs'
 require 'mogilefs/backend' # for the exceptions
 
-# read-only interface that looks like MogileFS::MogileFS This provides
-# direct, read-only access to any slave MySQL database to provide better
-# performance and eliminate extra points of failure
-
+# read-only interface that can be a backend for MogileFS::MogileFS
+#
+# This provides direct, read-only access to any slave MySQL database to
+# provide better performance, scalability and eliminate mogilefsd as a
+# point of failure
 class MogileFS::Mysql
 
-  attr_accessor :domain
   attr_reader :my
   attr_reader :query_method
 
@@ -19,7 +19,7 @@ class MogileFS::Mysql
   # The Mysql object can be either the standard Mysql driver or the
   # Mysqlplus one supporting c_async_query.
   def initialize(args = {})
-    @domain, @my = args[:domain], args[:mysql]
+    @my = args[:mysql]
     @query_method = @my.respond_to?(:c_async_query) ? :c_async_query : :query
     @last_update_device = @last_update_domain = Time.at(0)
     @cache_domain = @cache_device = nil
@@ -28,17 +28,16 @@ class MogileFS::Mysql
   ##
   # Lists keys starting with +prefix+ follwing +after+ up to +limit+.  If
   # +after+ is nil the list starts at the beginning.
-  def list_keys(prefix = '', after = '', limit = 1000, &block)
+  def _list_keys(domain, prefix = '', after = '', limit = 1000, &block)
     # this code is based on server/lib/MogileFS/Worker/Query.pm
-    dmid = refresh_domain[@domain] or \
+    dmid = refresh_domain[domain] or \
       raise MogileFS::Backend::DomainNotFoundError
 
     # don't modify passed arguments
     limit ||= 1000
     limit = limit.to_i
     limit = 1000 if limit > 1000 || limit <= 0
-    after = "#{after}"
-    prefix = "#{prefix}"
+    after, prefix = "#{after}", "#{prefix}"
 
     if after.length > 0 && /^#{Regexp.quote(prefix)}/ !~ after
       raise MogileFS::Backend::AfterMismatchError
@@ -66,8 +65,8 @@ class MogileFS::Mysql
 
   ##
   # Returns the size of +key+.
-  def size(key)
-    dmid = refresh_domain[@domain] or \
+  def _size(domain, key)
+    dmid = refresh_domain[domain] or \
       raise MogileFS::Backend::DomainNotFoundError
 
     sql = <<-EOS
@@ -83,14 +82,16 @@ class MogileFS::Mysql
 
   ##
   # Get the paths for +key+.
-  def get_paths(key, noverify = true, zone = nil)
-    dmid = refresh_domain[@domain] or \
+  def get_paths(params = {})
+    zone = params[:zone]
+    noverify = (params[:noverify] == 1) # TODO this is unused atm
+    dmid = refresh_domain[params[:domain]] or \
       raise MogileFS::Backend::DomainNotFoundError
     devices = refresh_device or raise MogileFS::Backend::NoDevicesError
     urls = []
     sql = <<-EOS
     SELECT fid FROM file
-    WHERE dmid = #{dmid} AND dkey = '#{@my.quote(key)}'
+    WHERE dmid = #{dmid} AND dkey = '#{@my.quote(params[:key])}'
     LIMIT 1
     EOS
 
@@ -110,15 +111,7 @@ class MogileFS::Mysql
     urls
   end
 
-  def readonly=(unused); true; end
-  def readonly; true; end
-  def readonly?; true; end
-  def store_file(key, klass, file); raise MogileFS::ReadOnlyError; end
-  def store_content(key, klass, content); raise MogileFS::ReadOnlyError; end
-  def new_file(key, klass, bytes=0, &block); raise MogileFS::ReadOnlyError; end
-  def rename(from, to); raise MogileFS::ReadOnlyError; end
-  def delete(key); raise MogileFS::ReadOnlyError; end
-  def sleep(duration); Kernel.sleep(duration || 10); {}; end
+  def _sleep(params); Kernel.sleep(params[:duration] || 10); {}; end
 
   private
 

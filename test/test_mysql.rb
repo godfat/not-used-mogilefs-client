@@ -52,12 +52,8 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
 
   def setup
     @my = FakeMysql.new
-    @mg = MogileFS::Mysql.new(:domain => 'test', :mysql => @my)
+    @mg = MogileFS::Mysql.new(:mysql => @my)
     super
-  end
-
-  def test_initialize
-    assert_equal 'test', @mg.domain
   end
 
   def test_refresh_device
@@ -96,7 +92,7 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     @my.expect << [ [ 1 ], [ 3 ] ] # devids
     expect = [ "http://10.0.0.1:7600/dev1/0/000/000/0000000012.fid",
                "http://10.0.0.3:7500/dev3/0/000/000/0000000012.fid" ]
-    assert_equal expect, @mg.get_paths('fookey')
+    assert_equal expect, @mg.get_paths(:domain => 'test', :key => 'fookey')
   end
 
   def test_get_paths_alt
@@ -104,7 +100,8 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     @my.expect << [ [ 1 ], [ 3 ] ] # devids
     expect = [ "http://192.168.0.1:7600/dev1/0/000/000/0000000012.fid",
                "http://10.0.0.3:7500/dev3/0/000/000/0000000012.fid"]
-    assert_equal expect, @mg.get_paths('fookey', true, 'alt')
+    params = { :domain => 'test', :key => 'fookey', :zone => 'alt' }
+    assert_equal expect, @mg.get_paths(params)
   end
 
   def test_list_keys
@@ -112,7 +109,7 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     expect_keys = [ [ 'foo', 'bar' ], 'bar' ]
     @my.expect << expect_full
     full = []
-    keys = @mg.list_keys do |dkey,length,devcount|
+    keys = @mg._list_keys('test') do |dkey,length,devcount|
       full << [ dkey, length, devcount ]
     end
     assert_equal expect_keys, keys
@@ -121,43 +118,19 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
 
   def test_list_keys_empty
     @my.expect << []
-    assert_nil @mg.list_keys
+    assert_nil @mg._list_keys('test')
   end
 
   def test_size
     @my.expect << [ [ '123' ] ]
-    assert_equal 123, @mg.size('foo')
+    assert_equal 123, @mg._size('test', 'foo')
 
     @my.expect << [ [ '456' ] ]
-    assert_equal 456, @mg.size('foo')
-  end
-
-  def test_store_file_readonly
-    assert_raises(MogileFS::ReadOnlyError) do
-      @mg.store_file 'new_key', 'test', '/dev/null'
-    end
-  end
-
-  def test_store_content_readonly
-    assert_raises(MogileFS::ReadOnlyError) do
-      @mg.store_content 'new_key', 'test', 'data'
-    end
-  end
-
-  def test_new_file_readonly
-    assert_raises(MogileFS::ReadOnlyError) { @mg.new_file 'new_key', 'test' }
-  end
-
-  def test_rename_readonly
-    assert_raises(MogileFS::ReadOnlyError) { @mg.rename 'a', 'b' }
-  end
-
-  def test_delete_readonly
-    assert_raises(MogileFS::ReadOnlyError) { @mg.delete 'no_such_key' }
+    assert_equal 456, @mg._size('test', 'foo')
   end
 
   def test_sleep
-    assert_nothing_raised { assert_equal({}, @mg.sleep(1)) }
+    assert_nothing_raised { assert_equal({}, @mg._sleep(:duration => 1)) }
   end
 
 end
