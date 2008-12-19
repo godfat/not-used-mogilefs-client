@@ -6,13 +6,15 @@ module MogileFS::Bigfile
   GZIP_HEADER = "\x1f\x8b".freeze # mogtool(1) has this
   # VALID_TYPES = %w(file tarball partition).map { |x| x.freeze }.freeze
 
+  # returns a big_info hash if successful
   def bigfile_stat(key)
-    info = get_file_data(key)
-    parse_info(info)
+    parse_info(get_file_data(key))
   end
 
-  # returns the big_info hash if successful, raises an exception if not
-  def bigfile_write(key, wr, opts = { :verify => false })
+  # returns total bytes written and the big_info hash if successful, raises an
+  # exception if not wr_io is expected to be an IO-like object capable of
+  # receiving the syswrite method.
+  def bigfile_write(key, wr_io, opts = { :verify => false })
     info = bigfile_stat(key)
     zi = nil
     md5 = opts[:verify] ? Digest::MD5.new : nil
@@ -55,7 +57,7 @@ module MogileFS::Bigfile
 
       sock = http_get_sock(uris[0])
       md5.reset if md5
-      w = sysrwloop(sock, wr, filter)
+      w = sysrwloop(sock, wr_io, filter)
 
       if md5 && md5.hexdigest != part[:md5]
         raise MogileFS::ChecksumMismatchError, "#{md5} != #{part[:md5]}"
@@ -63,13 +65,15 @@ module MogileFS::Bigfile
       total += w
     end
 
-    wr.syswrite(zi.finish) if zi
+    wr_io.syswrite(zi.finish) if zi
 
     [ total, info ]
   end
 
   private
 
+    ##
+    # parses the contents of a _big_info: string or IO object
     def parse_info(info = '')
       rv = { :parts => [] }
       info.each_line do |line|

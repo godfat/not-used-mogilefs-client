@@ -3,6 +3,11 @@ module MogileFS::Util
   CHUNK_SIZE = 65536
 
   # for copying large files while avoiding GC thrashing as much as possible
+  # writes the contents of io_rd into io_wr, running through filter if
+  # it is a Proc object.  The filter proc must respond to a string
+  # argument (and return a string) and to nil (possibly returning a
+  # string or nil).  This can be used to filter I/O through an
+  # Zlib::Inflate or Digest::MD5 object
   def sysrwloop(io_rd, io_wr, filter = nil)
     copied = 0
     # avoid making sysread repeatedly allocate a new String
@@ -34,10 +39,14 @@ module MogileFS::Util
     copied
   end # sysrwloop
 
+  # given an array of URIs, verify that at least one of them is accessible
+  # with the expected HTTP code within the timeout period (in seconds).
   def verify_uris(uris = [], expect = '200', timeout = 2.00)
     uri_socks = {}
     ok_uris = []
+    sockets = []
 
+    # first, we asynchronously connect to all of them
     uris.each do |uri|
       sock = Socket.new(Socket::AF_INET, Socket::SOCK_STREAM, 0)
       sock.fcntl(Fcntl::F_SETFL, sock.fcntl(Fcntl::F_GETFL) | Fcntl::O_NONBLOCK)
@@ -49,7 +58,8 @@ module MogileFS::Util
       end
     end
 
-    sockets = []
+    # wait for at least one of them to finish connecting and send
+    # HTTP requests to the connected ones
     begin
       t0 = Time.now
       r = select(nil, uri_socks.keys, nil, timeout > 0 ? timeout : 0)
@@ -65,6 +75,8 @@ module MogileFS::Util
       end
     end until sockets[0] || timeout < 0
 
+    # Await a response from the sockets we had written to, we only need one
+    # valid response, but we'll take more if they return simultaneously
     if sockets[0]
       begin
         t0 = Time.now
@@ -88,6 +100,7 @@ module MogileFS::Util
 
   private
 
+    # writes the contents of buf to io_wr in full w/o blocking
     def syswrite_full(io_wr, buf)
       written = 0
       loop do
