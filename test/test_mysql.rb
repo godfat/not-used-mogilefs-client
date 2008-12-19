@@ -88,7 +88,7 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
   end
 
   def test_sleep
-    assert_nothing_raised { assert_equal({}, @mg._sleep(:duration => 1)) }
+    assert_nothing_raised { assert_equal({}, @mg.sleep(:duration => 1)) }
   end
 
 end

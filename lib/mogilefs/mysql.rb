@@ -111,7 +111,7 @@ class MogileFS::Mysql
     urls
   end
 
-  def _sleep(params); Kernel.sleep(params[:duration] || 10); {}; end
+  def sleep(params); Kernel.sleep(params[:duration] || 10); {}; end
 
   private
 
