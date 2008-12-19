@@ -1,7 +1,4 @@
 require 'test/setup'
-require 'stringio'
-require 'tempfile'
-require 'fileutils'
 require 'mogilefs/mysql'
 
 class MogileFS::Mysql
