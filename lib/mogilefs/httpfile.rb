@@ -89,13 +89,17 @@ class MogileFS::HTTPFile < StringIO
     file_size = nil
     if @bigfile
       # Don't try to run out of memory
-      fp = File.open(@bigfile)
-      file_size = File.size(@bigfile)
-      @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{file_size}\r\n\r\n"
-      sysrwloop(fp, @socket)
-      fp.close
+      File.open(@bigfile) do |fp|
+        file_size = fp.stat.size
+        @socket.mogilefs_tcp_cork = fp.sync = true
+        @socket.send("PUT #{@path.request_uri} HTTP/1.0\r\n" \
+                     "Content-Length: #{file_size}\r\n\r\n", 0)
+        sysrwloop(fp, @socket)
+        @socket.mogilefs_tcp_cork = false
+      end
     else
-      @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{length}\r\n\r\n#{string}"
+      @socket.send("PUT #{@path.request_uri} HTTP/1.0\r\n" \
+                   "Content-Length: #{length}\r\n\r\n#{string}", 0)
     end
 
     if connected? then

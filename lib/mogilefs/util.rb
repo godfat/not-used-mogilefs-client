@@ -20,18 +20,16 @@ module MogileFS::Util
     buf = ' ' * CHUNK_SIZE # preallocate to avoid GC thrashing
     io_wr.sync = true
     loop do
-      begin
-        b = begin
-          io_rd.sysread(CHUNK_SIZE, buf)
-        rescue Errno::EAGAIN, Errno::EINTR
-          select([io_rd], nil, nil, nil)
-          retry
-        end
-        b = filter.call(b) if filter
-        copied += syswrite_full(io_wr, b)
+      b = begin
+        io_rd.sysread(CHUNK_SIZE, buf)
+      rescue Errno::EAGAIN, Errno::EINTR
+        IO.select([io_rd], nil, nil, nil)
+        retry
       rescue EOFError
         break
       end
+      b = filter.call(b) if filter
+      copied += syswrite_full(io_wr, b)
     end
 
     # filter must take nil as a possible argument to indicate EOF
@@ -59,7 +57,7 @@ module MogileFS::Util
     # HTTP requests to the connected ones
     begin
       t0 = Time.now
-      r = select(nil, uri_socks.keys, nil, timeout > 0 ? timeout : 0)
+      r = IO.select(nil, uri_socks.keys, nil, timeout > 0 ? timeout : 0)
       timeout -= (Time.now - t0)
       break unless r && r[1]
       r[1].each do |sock|
@@ -104,7 +102,7 @@ module MogileFS::Util
         w = begin
           io_wr.syswrite(buf)
         rescue Errno::EAGAIN, Errno::EINTR
-          select(nil, [io_wr], nil, nil)
+          IO.select(nil, [io_wr], nil, nil)
           retry
         end
         written += w
@@ -126,6 +124,15 @@ class MogileFS::Timeout < Timeout::Error; end
 
 class Socket
   attr_accessor :mogilefs_addr, :mogilefs_connected
+
+  TCP_CORK = 3 if ! defined?(TCP_CORK) && RUBY_PLATFORM =~ /linux/
+
+  def mogilefs_tcp_cork=(set)
+    if defined?(TCP_CORK)
+      self.setsockopt(SOL_TCP, TCP_CORK, set ? 1 : 0) rescue nil
+    end
+    set
+  end
 
   # Socket lacks peeraddr method of the IPSocket/TCPSocket classes
   def mogilefs_peername

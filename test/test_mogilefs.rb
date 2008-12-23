@@ -4,6 +4,7 @@ require 'tempfile'
 require 'fileutils'
 
 class TestMogileFS__MogileFS < TestMogileFS
+  include MogileFS::Util
 
   def setup
     @klass = MogileFS::MogileFS
@@ -324,6 +325,60 @@ class TestMogileFS__MogileFS < TestMogileFS
 
     assert File.exist?(dest_file)
     assert_equal '', File.read(dest_file)
+  end
+
+  def test_new_file_http_large
+    expect = Tempfile.new('test_mogilefs.expect')
+    to_put = Tempfile.new('test_mogilefs.to_put')
+    received = Tempfile.new('test_mogilefs.received')
+
+    nr = 10 # tested with 1000
+    chunk_size = 1024 * 1024
+    expect_size = nr * chunk_size
+
+    header = "PUT /path HTTP/1.0\r\n" \
+             "Content-Length: #{expect_size}\r\n\r\n"
+    assert_equal header.size, expect.syswrite(header)
+    nr.times do
+      assert_equal chunk_size, expect.syswrite(' ' * chunk_size)
+      assert_equal chunk_size, to_put.syswrite(' ' * chunk_size)
+    end
+    assert_equal expect_size + header.size, expect.stat.size
+    assert_equal expect_size, to_put.stat.size
+
+    readed = 0
+    t = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      loop do
+        buf = client.readpartial(8192) or break
+        break if buf.length == 0
+        assert_equal buf.length, received.syswrite(buf)
+        readed += buf.length
+        break if readed >= expect.stat.size
+      end
+      client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
+      client.close
+    end)
+
+    @backend.create_open = {
+      'devid' => '1',
+      'path' => "http://127.0.0.1:#{t.port}/path",
+    }
+
+    @client.store_file('new_key', 'test', to_put.path)
+    assert_equal expect.stat.size, readed
+
+    ENV['PATH'].split(/:/).each do |path|
+      cmp_bin = "#{path}/cmp"
+      File.executable?(cmp_bin) or next
+      # puts "running #{cmp_bin} #{expect.path} #{received.path}"
+      assert( system(cmp_bin, expect.path, received.path) )
+      break
+    end
+
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_store_content_readonly
