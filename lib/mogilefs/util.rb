@@ -1,3 +1,6 @@
+require 'mogilefs'
+require 'socket'
+
 module MogileFS::Util
 
   CHUNK_SIZE = 65536
@@ -48,14 +51,8 @@ module MogileFS::Util
 
     # first, we asynchronously connect to all of them
     uris.each do |uri|
-      sock = Socket.new(Socket::AF_INET, Socket::SOCK_STREAM, 0)
-      sock.fcntl(Fcntl::F_SETFL, sock.fcntl(Fcntl::F_GETFL) | Fcntl::O_NONBLOCK)
-      begin
-        sock.connect(Socket.pack_sockaddr_in(uri.port, uri.host))
-        uri_socks[sock] = uri
-      rescue
-        sock.close rescue nil
-      end
+      sock = Socket.mogilefs_new_nonblock(uri.host, uri.port) rescue next
+      uri_socks[sock] = uri
     end
 
     # wait for at least one of them to finish connecting and send
@@ -119,3 +116,80 @@ module MogileFS::Util
     end
 
 end
+
+require 'timeout'
+##
+# Timeout error class.  Subclassing it from Timeout::Error is the only
+# reason we require the 'timeout' module, otherwise that module is
+# broken and worthless to us.
+class MogileFS::Timeout < Timeout::Error; end
+
+class Socket
+  attr_accessor :mogilefs_addr, :mogilefs_connected
+
+  # Socket lacks peeraddr method of the IPSocket/TCPSocket classes
+  def mogilefs_peername
+    Socket.unpack_sockaddr_in(getpeername).reverse.map {|x| x.to_s }.join(':')
+  end
+
+  def mogilefs_init(host = nil, port = nil)
+    return true if defined?(@mogilefs_connected)
+
+    @mogilefs_addr = Socket.sockaddr_in(port, host).freeze if port && host
+
+    begin
+      connect_nonblock(@mogilefs_addr)
+      @mogilefs_connected = true
+    rescue Errno::EINPROGRESS
+      nil
+    rescue Errno::EISCONN
+      @mogilefs_connected = true
+    end
+  end
+
+  class << self
+
+    # Creates a new (TCP) Socket and initiates (but does not wait for) the
+    # connection
+    def mogilefs_new_nonblock(host, port)
+      sock = Socket.new(Socket::AF_INET, Socket::SOCK_STREAM, 0)
+      sock.sync = true
+      sock.mogilefs_init(host, port)
+      sock
+    end
+
+    # Like TCPSocket.new(host, port), but with an explicit timeout
+    # (and we don't care for local address/port we're binding to).
+    # This raises MogileFS::Timeout if timeout expires
+    def mogilefs_new(host, port, timeout = 5.0)
+      sock = mogilefs_new_nonblock(host, port) or return sock
+
+      while timeout > 0
+        t0 = Time.now
+        r = IO.select(nil, [sock], nil, timeout)
+        return sock if r && r[1] && sock.mogilefs_init
+        timeout -= (Time.now - t0)
+      end
+
+      sock.close rescue nil
+      raise MogileFS::Timeout, 'socket write timeout'
+    end
+
+    # Makes a request on a new TCP Socket and returns with a readble socket
+    # within the given timeout.
+    # This raises MogileFS::Timeout if timeout expires
+    def mogilefs_new_request(host, port, request, timeout = 5.0)
+      t0 = Time.now
+      sock = mogilefs_new(host, port, timeout)
+      sock.syswrite(request)
+      timeout -= (Time.now - t0)
+      raise MogileFS::Timeout, 'socket read timeout' if timeout < 0
+      r = IO.select([sock], nil, nil, timeout)
+      return sock if r && r[0]
+      raise MogileFS::Timeout, 'socket read timeout'
+    end
+
+  end
+
+end
+

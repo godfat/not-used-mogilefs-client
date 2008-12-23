@@ -1,5 +1,3 @@
-require 'fcntl'
-require 'socket'
 require 'stringio'
 require 'uri'
 require 'mogilefs/backend'
@@ -144,7 +142,7 @@ class MogileFS::HTTPFile < StringIO
       raise NoStorageNodesError if @path.nil?
     end
 
-    @socket = TCPSocket.new @path.host, @path.port
+    @socket = Socket.mogilefs_new @path.host, @path.port
   end
 
   def next_path

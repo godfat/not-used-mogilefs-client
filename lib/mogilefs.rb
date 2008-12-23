@@ -30,8 +30,6 @@ module MogileFS
 
 end
 
-require 'socket'
-
 require 'mogilefs/backend'
 require 'mogilefs/nfsfile'
 require 'mogilefs/httpfile'

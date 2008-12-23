@@ -1,6 +1,5 @@
-require 'socket'
-require 'thread'
 require 'mogilefs'
+require 'mogilefs/util'
 
 ##
 # MogileFS::Backend communicates with the MogileFS trackers.
@@ -146,10 +145,10 @@ class MogileFS::Backend
   private unless defined? $TESTING
 
   ##
-  # Returns a new TCPSocket connected to +port+ on +host+.
+  # Returns a new Socket (TCP) connected to +port+ on +host+.
 
   def connect_to(host, port)
-    return TCPSocket.new(host, port)
+    Socket.mogilefs_new(host, port, @timeout)
   end
 
   ##
@@ -223,7 +222,7 @@ class MogileFS::Backend
       timeleft -= (Time.now - t0)
 
       if timeleft < 0
-        peer = @socket ? "#{@socket.peeraddr[3]}:#{@socket.peeraddr[1]} " : nil
+        peer = @socket ? "#{@socket.mogilefs_peername} " : nil
 
         # we DO NOT want the response we timed out waiting for, to crop up later
         # on, on the same socket, intersperesed with a subsequent request! so,
@@ -250,7 +249,7 @@ class MogileFS::Backend
 
       begin
         @socket = connect_to(*host.split(':'))
-      rescue SystemCallError
+      rescue SystemCallError, MogileFS::Timeout
         @dead[host] = now
         next
       end

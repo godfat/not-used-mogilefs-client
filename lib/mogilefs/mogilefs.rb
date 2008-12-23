@@ -1,14 +1,6 @@
-require 'socket'
-require 'timeout'
-
 require 'mogilefs/client'
 require 'mogilefs/nfsfile'
 require 'mogilefs/util'
-
-##
-# Timeout error class.
-
-class MogileFS::Timeout < Timeout::Error; end
 
 ##
 # MogileFS File manipulation client.
@@ -226,12 +218,11 @@ class MogileFS::MogileFS < MogileFS::Client
       when /^http:\/\// then
         begin
           url = URI.parse path
+          s = Socket.mogilefs_new_request(url.host, url.port,
+                                   "HEAD #{url.request_uri} HTTP/1.0\r\n\r\n",
+                                   @get_file_data_timeout)
+          res = s.recv(4096, 0)
 
-          res = timeout @get_file_data_timeout, MogileFS::Timeout do
-            s = TCPSocket.new(url.host, url.port)
-            s.syswrite("HEAD #{url.request_uri} HTTP/1.0\r\n\r\n")
-            s.sysread(4096)
-          end
           if cl = /^Content-Length:\s*(\d+)/i.match(res)
             return cl[1].to_i
           end
@@ -281,15 +272,12 @@ class MogileFS::MogileFS < MogileFS::Client
   protected
 
     def http_get_sock(uri)
-      sock = nil
-      timeout @get_file_data_timeout, MogileFS::Timeout do
-        sock = TCPSocket.new(uri.host, uri.port)
-        sock.sync = true
-        sock.syswrite("GET #{uri.request_uri} HTTP/1.0\r\n\r\n")
-        buf = sock.recv(4096, Socket::MSG_PEEK)
-        head, body = buf.split(/\r\n\r\n/, 2)
-        head = sock.recv(head.size + 4)
-      end
+      sock = Socket.mogilefs_new_request(uri.host, uri.port,
+                                    "GET #{uri.request_uri} HTTP/1.0\r\n\r\n",
+                                    @get_file_data_timeout)
+      buf = sock.recv(4096, Socket::MSG_PEEK)
+      head, body = buf.split(/\r\n\r\n/, 2)
+      head = sock.recv(head.size + 4, 0)
 
       sock
     end # def http_get_sock
