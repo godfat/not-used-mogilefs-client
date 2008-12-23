@@ -155,7 +155,7 @@ class MogileFS::MogileFS < MogileFS::Client
         return sysrwloop(file, mfp)
       else
 	if File.size(file) > 0x10000 # Bigass file, handle differently
-	  mfp.bigfile = file
+	  mfp.big_io = file
 	  return
 	else
           return File.open(file) { |fp| sysrwloop(fp, mfp) }

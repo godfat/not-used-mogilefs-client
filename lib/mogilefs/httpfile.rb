@@ -40,9 +40,9 @@ class MogileFS::HTTPFile < StringIO
   attr_reader :class
 
   ##
-  # The bigfile name in case we have file > 256M
+  # The big_io name in case we have file > 256M
 
-  attr_accessor :bigfile
+  attr_accessor :big_io
 
   ##
   # Works like File.open.  Use MogileFS::MogileFS#new_file instead of this
@@ -72,7 +72,7 @@ class MogileFS::HTTPFile < StringIO
     @devid = devid
     @klass = klass
     @key = key
-    @bigfile = nil
+    @big_io = nil
 
     @dests = dests.map { |(_,u)| URI.parse u }
     @tried = {}
@@ -87,9 +87,9 @@ class MogileFS::HTTPFile < StringIO
     connect_socket
 
     file_size = nil
-    if @bigfile
+    if @big_io
       # Don't try to run out of memory
-      File.open(@bigfile) do |fp|
+      File.open(@big_io) do |fp|
         file_size = fp.stat.size
         @socket.mogilefs_tcp_cork = fp.sync = true
         @socket.send("PUT #{@path.request_uri} HTTP/1.0\r\n" \
@@ -125,7 +125,7 @@ class MogileFS::HTTPFile < StringIO
     @mg.backend.create_close(:fid => @fid, :devid => @devid,
                              :domain => @mg.domain, :key => @key,
                              :path => @path, :size => length)
-    return file_size if @bigfile
+    return file_size if @big_io
     return nil
   end
 
