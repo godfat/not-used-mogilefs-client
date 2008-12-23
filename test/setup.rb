@@ -1,3 +1,4 @@
+STDIN.sync = STDOUT.sync = STDERR.sync = true
 require 'test/unit'
 
 require 'fileutils'
@@ -48,95 +49,36 @@ class FakeBackend
 
 end
 
-class FakeSocket
-
-  attr_reader :read_s
-  attr_reader :write_s
-  attr_reader :sync
-
-  def initialize(read = '', write = StringIO.new)
-    @read_s = read.class.method_defined?(:sysread) ? read : StringIO.new(read)
-    @write_s = write
-    @closed = false
-    @sync = false
-  end
-
-  def sync=(do_sync)
-    @sync = do_sync
-    @write_s.sync = do_sync
-    @read_s.sync = do_sync
-  end
-
-  def closed?
-    @closed
-  end
-
-  def close
-    @closed = true
-    return nil
-  end
-
-  def gets
-    @read_s.gets
-  end
-
-  def peeraddr
-    ['AF_INET', 6001, 'localhost', '127.0.0.1']
-  end
-
-  def read(bytes = nil)
-    @read_s.read bytes
-  end
-
-  def sysread(bytes, buf = '')
-    @read_s.sysread bytes, buf
-  end
-
-  def recv_nonblock(bytes, flags = 0)
-    ret = @read_s.sysread(bytes)
-    # Ruby doesn't expose pread(2)
-    if (flags & Socket::MSG_PEEK) != 0
-      if @read_s.respond_to?(:sysseek)
-        @read_s.sysseek(-ret.size, IO::SEEK_CUR)
-      else
-        @read_s.seek(-ret.size, IO::SEEK_CUR)
-      end
-    end
-    ret
-  end
-  alias_method :recv, :recv_nonblock
-
-  def write(data)
-    @write_s.write data
-  end
-
-  def syswrite(data)
-    @write_s.syswrite data
-  end
-
-end
-
 class MogileFS::Client
   attr_writer :readonly
 end
 
-class TCPSocket
+require 'socket'
+class TempServer
+  attr_reader :port
 
-  class << self
+  def self.destroy_all!
+    ObjectSpace.each_object(TempServer) { |t| t.destroy! }
+  end
 
-    attr_accessor :connections
-    attr_accessor :sockets
-
-    alias old_new new
-
-    def new(host, port)
-      raise Errno::ECONNREFUSED if @sockets.empty?
-      @connections << [host, port]
-      @sockets.pop
+  def initialize(server_proc)
+    @port = @sock = nil
+    retries = 0
+    begin
+      @port = 5000 + $$ % 1000 + rand(60000)
+      @sock = Socket.new(Socket::AF_INET, Socket::SOCK_STREAM, 0)
+      @sock.bind(Socket.pack_sockaddr_in(@port, '127.0.0.1'))
+      @sock.listen(5)
+    rescue Errno::EADDRINUSE
+      @sock.close rescue nil
+      retry if (retries += 1) < 10
     end
+    @thr = Thread.new(@sock, @port) { |s,p| server_proc.call(s, p) }
+  end
 
-    alias open new
-
+  def destroy!
+    @sock.close rescue nil
+    Thread.kill(@thr) rescue nil
   end
 
 end
@@ -154,9 +96,6 @@ class TestMogileFS < Test::Unit::TestCase
                                   :root => @root
     @backend = FakeBackend.new
     @client.instance_variable_set '@backend', @backend
-
-    TCPSocket.sockets = []
-    TCPSocket.connections = []
   end
 
   def teardown

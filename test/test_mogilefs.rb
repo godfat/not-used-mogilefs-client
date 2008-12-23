@@ -20,16 +20,28 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_get_file_data_http
-    socket = FakeSocket.new("HTTP/1.0 200 OK\r\n" \
-                            "Content-Length: 5\r\n\r\ndata!")
-    TCPSocket.sockets << socket
-
-    path1 = 'http://rur-1/dev1/0/000/000/0000000062.fid'
-    path2 = 'http://rur-2/dev2/0/000/000/0000000062.fid'
+    accept_nr = 0
+    svr = Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.recv(4096, 0)
+      assert(readed =~ \
+            %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
+      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
+      accept_nr += 1
+      client.close
+    end
+    t1 = TempServer.new(svr)
+    t2 = TempServer.new(svr)
+    path1 = "http://127.0.0.1:#{t1.port}/dev1/0/000/000/0000000062.fid"
+    path2 = "http://127.0.0.1:#{t2.port}/dev2/0/000/000/0000000062.fid"
 
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
     assert_equal 'data!', @client.get_file_data('key')
+    assert_equal 1, accept_nr
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_get_file_data_http_block
@@ -43,11 +55,22 @@ class TestMogileFS__MogileFS < TestMogileFS
     nr.times { assert_equal chunk_size, tmpfp.syswrite(' ' * chunk_size) }
     assert_equal expect_size + header.size, File.size(tmpfp.path)
     tmpfp.sysseek(0)
-    socket = FakeSocket.new(tmpfp)
-    TCPSocket.sockets << socket
 
-    path1 = 'http://rur-1/dev1/0/000/000/0000000062.fid'
-    path2 = 'http://rur-2/dev2/0/000/000/0000000062.fid'
+    accept_nr = 0
+    svr = Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      accept_nr += 1
+      readed = client.recv(4096, 0)
+      assert(readed =~ \
+            %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
+      syswrloop(tmpfp, client)
+      client.close
+    end
+    t1 = TempServer.new(svr)
+    t2 = TempServer.new(svr)
+    path1 = "http://127.0.0.1:#{t1.port}/dev1/0/000/000/0000000062.fid"
+    path2 = "http://127.0.0.1:#{t2.port}/dev2/0/000/000/0000000062.fid"
 
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
@@ -66,6 +89,7 @@ class TestMogileFS__MogileFS < TestMogileFS
         end
       end
       assert_equal expect_size, nr, "size mismatch"
+      assert_equal 1, accept_nr
     end
   end
 
@@ -136,12 +160,22 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.list_keys = { 'key_count' => 2, 'next_after' => 'new_key_2',
                            'key_1' => 'new_key_1', 'key_2' => 'new_key_2' }
     http_resp = "HTTP/1.0 200 OK\r\nContent-Length: %u\r\n"
-    TCPSocket.sockets << FakeSocket.new(http_resp % 10)
-    TCPSocket.sockets << FakeSocket.new(http_resp % 5)
-
-    @backend.get_paths = { 'paths' => 2, 'path1' => 'http://a',
-                           'path2' => 'http://b' }
-    @backend.get_paths = { 'paths' => 1, 'path1' => 'http://c' }
+    srv = Proc.new do |serv, port, size|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.readpartial(4096)
+      assert %r{\AHEAD } =~ readed
+      client.send(http_resp % size, 0)
+      client.close
+    end
+    t1 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 5) })
+    t2 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 5) })
+    t3 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 10) })
+    @backend.get_paths = { 'paths' => 2,
+                           'path1' => "http://127.0.0.1:#{t1.port}/",
+                           'path2' => "http://127.0.0.1:#{t2.port}/" }
+    @backend.get_paths = { 'paths' => 1,
+                           'path1' => "http://127.0.0.1:#{t3.port}/" }
 
     res = []
     keys, next_after = @client.list_keys('new') do |key,length,devcount|
@@ -152,6 +186,8 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_equal expect_res, res
     assert_equal ['new_key_1', 'new_key_2'], keys.sort
     assert_equal 'new_key_2', next_after
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_new_file_http
@@ -169,25 +205,22 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_size_http
-    socket = FakeSocket.new <<-EOF
-HTTP/1.0 200 OK\r
-Content-Length: 5\r
-    EOF
+    accept_nr = 0
+    t = TempServer.new(Proc.new do |serv,port|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.recv(4096, 0) rescue nil
+      assert_equal "HEAD /path HTTP/1.0\r\n\r\n", readed
+      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\n", 0)
+      accept_nr += 1
+      client.close
+    end)
 
-    TCPSocket.sockets << socket
-
-    path = 'http://example.com/path'
-
+    path = "http://127.0.0.1:#{t.port}/path"
     @backend.get_paths = { 'paths' => 1, 'path1' => path }
 
     assert_equal 5, @client.size('key')
-
-    socket.write_s.rewind
-
-    assert_equal "HEAD /path HTTP/1.0\r\n", socket.write_s.gets
-
-    assert_equal ['example.com', 80], TCPSocket.connections.shift
-    assert_empty TCPSocket.connections
+    assert_equal 1, accept_nr
   end
 
   def test_size_nfs
@@ -201,36 +234,41 @@ Content-Length: 5\r
   end
 
   def test_store_content_http
-    socket = FakeSocket.new 'HTTP/1.0 200 OK'
+    received = ''
+    expected = "PUT /path HTTP/1.0\r\nContent-Length: 4\r\n\r\ndata"
 
-    TCPSocket.sockets << socket
+    t = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      received = client.recv(4096, 0)
+      client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
+      client.close
+    end)
 
     @backend.create_open = {
       'devid' => '1',
-      'path' => 'http://example.com/path',
+      'path' => "http://127.0.0.1:#{t.port}/path",
     }
 
     @client.store_content 'new_key', 'test', 'data'
 
-    expected = <<-EOF.chomp
-PUT /path HTTP/1.0\r
-Content-Length: 4\r
-\r
-data
-    EOF
-
-    assert_equal expected, socket.write_s.string
-
-    assert_equal ['example.com', 80], TCPSocket.connections.shift
-    assert_empty TCPSocket.connections
+    assert_equal expected, received
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_store_content_http_fail
-    TCPSocket.sockets << FakeSocket.new('HTTP/1.0 500 Internal Server Error')
+    t = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      client.recv(4096, 0)
+      client.send("HTTP/1.0 500 Internal Server Error\r\n\r\n", 0)
+      client.close
+    end)
 
     @backend.create_open = {
       'devid' => '1',
-      'path' => 'http://example.com/path',
+      'path' => "http://127.0.0.1:#{t.port}/path",
     }
 
     assert_raises MogileFS::HTTPFile::BadResponseError do
@@ -239,27 +277,23 @@ data
   end
 
   def test_store_content_http_empty
-    socket = FakeSocket.new 'HTTP/1.0 200 OK'
-
-    TCPSocket.sockets << socket
+    received = ''
+    expected = "PUT /path HTTP/1.0\r\nContent-Length: 0\r\n\r\n"
+    t = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      received = client.recv(4096, 0)
+      client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
+      client.close
+    end)
 
     @backend.create_open = {
       'devid' => '1',
-      'path' => 'http://example.com/path',
+      'path' => "http://127.0.0.1:#{t.port}/path",
     }
 
     @client.store_content 'new_key', 'test', ''
-
-    expected = <<-EOF
-PUT /path HTTP/1.0\r
-Content-Length: 0\r
-\r
-    EOF
-
-    assert_equal expected, socket.write_s.string
-
-    assert_equal ['example.com', 80], TCPSocket.connections.shift
-    assert_empty TCPSocket.connections
+    assert_equal expected, received
   end
 
   def test_store_content_nfs
