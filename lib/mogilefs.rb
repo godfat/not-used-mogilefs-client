@@ -22,6 +22,7 @@ module MogileFS
     def message; 'Empty path for mogile upload'; end
   end
 
+  class UnsupportedPathError < Error; end
   class RequestTruncatedError < Error; end
   class InvalidResponseError < Error; end
   class UnreachableBackendError < Error
@@ -31,7 +32,6 @@ module MogileFS
 end
 
 require 'mogilefs/backend'
-require 'mogilefs/nfsfile'
 require 'mogilefs/httpfile'
 require 'mogilefs/client'
 require 'mogilefs/bigfile'

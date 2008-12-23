@@ -88,18 +88,9 @@ class TestMogileFS < Test::Unit::TestCase
   undef_method :default_test
 
   def setup
-    @tempdir = File.join Dir.tmpdir, "test_mogilefs_#{$$}"
-    @root = File.join @tempdir, 'root'
-    FileUtils.mkdir_p @root
-
-    @client = @klass.new :hosts => ['kaa:6001'], :domain => 'test',
-                                  :root => @root
+    @client = @klass.new :hosts => ['kaa:6001'], :domain => 'test'
     @backend = FakeBackend.new
     @client.instance_variable_set '@backend', @backend
-  end
-
-  def teardown
-    FileUtils.rm_rf @tempdir
   end
 
 end

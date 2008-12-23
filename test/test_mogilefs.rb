@@ -13,10 +13,9 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_initialize
     assert_equal 'test', @client.domain
-    assert_equal @root, @client.root
 
     assert_raises ArgumentError do
-      MogileFS::MogileFS.new :hosts => ['kaa:6001'], :root => '/mogilefs/test'
+      MogileFS::MogileFS.new :hosts => ['kaa:6001']
     end
   end
 
@@ -95,12 +94,12 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_get_paths
-    path1 = 'rur-1/dev1/0/000/000/0000000062.fid'
-    path2 = 'rur-2/dev2/0/000/000/0000000062.fid'
+    path1 = 'http://rur-1/dev1/0/000/000/0000000062.fid'
+    path2 = 'http://rur-2/dev2/0/000/000/0000000062.fid'
 
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
-    expected = ["#{@root}/#{path1}", "#{@root}/#{path2}"]
+    expected = [ path1, path2 ]
 
     assert_equal expected, @client.get_paths('key').sort
   end
@@ -224,16 +223,6 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_equal 1, accept_nr
   end
 
-  def test_size_nfs
-    path = File.join @root, 'path'
-
-    File.open path, 'w' do |fp| fp.write 'data!' end
-
-    @backend.get_paths = { 'paths' => 1, 'path1' => 'path' }
-
-    assert_equal 5, @client.size('key')
-  end
-
   def test_store_content_http
     received = ''
     expected = "PUT /path HTTP/1.0\r\nContent-Length: 4\r\n\r\ndata"
@@ -303,28 +292,9 @@ class TestMogileFS__MogileFS < TestMogileFS
       'devid_1' => '1',
       'path_1' => '/path',
     }
-
-    @client.store_content 'new_key', 'test', 'data'
-
-    dest_file = File.join(@root, 'path')
-
-    assert File.exist?(dest_file)
-    assert_equal 'data', File.read(dest_file)
-  end
-
-  def test_store_content_nfs_empty
-    @backend.create_open = {
-      'dev_count' => '1',
-      'devid_1' => '1',
-      'path_1' => '/path',
-    }
-
-    @client.store_content 'new_key', 'test', ''
-
-    dest_file = File.join(@root, 'path')
-
-    assert File.exist?(dest_file)
-    assert_equal '', File.read(dest_file)
+    assert_raises MogileFS::UnsupportedPathError do
+      @client.store_content 'new_key', 'test', 'data'
+    end
   end
 
   def test_new_file_http_large

@@ -1,5 +1,4 @@
 require 'mogilefs/client'
-require 'mogilefs/nfsfile'
 require 'mogilefs/util'
 
 ##
@@ -9,11 +8,6 @@ class MogileFS::MogileFS < MogileFS::Client
 
   include MogileFS::Util
   include MogileFS::Bigfile
-
-  ##
-  # The path to the local MogileFS mount point if you are using NFS mode.
-
-  attr_reader :root
 
   ##
   # The domain of keys for this MogileFS client.
@@ -27,12 +21,10 @@ class MogileFS::MogileFS < MogileFS::Client
 
   ##
   # Creates a new MogileFS::MogileFS instance.  +args+ must include a key
-  # :domain specifying the domain of this client.  A key :root will be used to
-  # specify the root of the NFS file system.
+  # :domain specifying the domain of this client.
 
   def initialize(args = {})
     @domain = args[:domain]
-    @root = args[:root]
 
     @get_file_data_timeout = 5
 
@@ -99,7 +91,6 @@ class MogileFS::MogileFS < MogileFS::Client
     paths = (1..res['paths'].to_i).map { |i| res["path#{i}"] }
     return paths if paths.empty?
     return paths if paths.first =~ /^http:\/\//
-    return paths.map { |path| File.join @root, path }
   end
 
   ##
@@ -134,12 +125,13 @@ class MogileFS::MogileFS < MogileFS::Client
 
     case path
     when nil, '' then
-      raise EmptyPathError
+      raise MogileFS::EmptyPathError
     when /^http:\/\// then
       MogileFS::HTTPFile.open(self, res['fid'], path, devid, klass, key,
                               dests, bytes, &block)
     else
-      MogileFS::NFSFile.open(self, res['fid'], path, devid, klass, key, &block)
+      raise MogileFS::UnsupportedPathError,
+            "path '#{path}' returned by backend is not supported"
     end
   end
 
