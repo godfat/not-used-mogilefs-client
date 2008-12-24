@@ -102,34 +102,29 @@ class MogileFS::MogileFS < MogileFS::Client
     res = @backend.create_open(:domain => @domain, :class => klass,
                                :key => key, :multi_dest => 1)
 
-    dests = nil
-
-    if res.include? 'dev_count' then # HACK HUH?
-      dests = (1..res['dev_count'].to_i).map do |i|
+    dests = if dev_count = res['dev_count'] # multi_dest succeeded
+      (1..dev_count.to_i).map do |i|
         [res["devid_#{i}"], res["path_#{i}"]]
       end
-    else
+    else # single destination returned
       # 0x0040:  d0e4 4f4b 2064 6576 6964 3d31 2666 6964  ..OK.devid=1&fid
       # 0x0050:  3d33 2670 6174 683d 6874 7470 3a2f 2f31  =3&path=http://1
       # 0x0060:  3932 2e31 3638 2e31 2e37 323a 3735 3030  92.168.1.72:7500
       # 0x0070:  2f64 6576 312f 302f 3030 302f 3030 302f  /dev1/0/000/000/
       # 0x0080:  3030 3030 3030 3030 3033 2e66 6964 0d0a  0000000003.fid..
 
-      dests = [[res['devid'], res['path']]]
+      [[res['devid'], res['path']]]
     end
 
-    dest = dests.first
-    devid, path = dest
-
-    case path
+    case (dests[0][1] rescue nil)
     when nil, '' then
       raise MogileFS::EmptyPathError
     when /^http:\/\// then
-      MogileFS::HTTPFile.open(self, res['fid'], path, devid, klass, key,
+      MogileFS::HTTPFile.open(self, res['fid'], klass, key,
                               dests, bytes, &block)
     else
       raise MogileFS::UnsupportedPathError,
-            "path '#{path}' returned by backend is not supported"
+            "paths '#{dests.inspect}' returned by backend is not supported"
     end
   end
 

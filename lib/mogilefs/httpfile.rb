@@ -24,9 +24,9 @@ class MogileFS::HTTPFile < StringIO
   end
 
   ##
-  # The path this file will be stored to.
+  # The URI this file will be stored to.
 
-  attr_reader :path
+  attr_reader :uri
 
   ##
   # The key for this file.  This key won't represent a real file until you've
@@ -64,99 +64,83 @@ class MogileFS::HTTPFile < StringIO
   # Creates a new HTTPFile with MogileFS-specific data.  Use
   # MogileFS::MogileFS#new_file instead of this method.
 
-  def initialize(mg, fid, path, devid, klass, key, dests, content_length)
+  def initialize(mg, fid, klass, key, dests, content_length)
     super ''
     @mg = mg
     @fid = fid
-    @path = path
-    @devid = devid
+    @uri = @devid = nil
     @klass = klass
     @key = key
     @big_io = nil
 
-    @dests = dests.map { |(_,u)| URI.parse u }
+    @dests = dests
     @tried = {}
 
     @socket = nil
   end
 
   ##
-  # Closes the file handle and marks it as closed in MogileFS.
+  # Writes an HTTP PUT request to +sock+ to upload the file and
+  # returns file size if the socket finished writing
+  def upload(devid, uri)
+    file_size = length
+    sock = Socket.mogilefs_new(uri.host, uri.port)
 
-  def close
-    connect_socket
-
-    file_size = nil
     if @big_io
       # Don't try to run out of memory
       File.open(@big_io) do |fp|
         file_size = fp.stat.size
-        @socket.mogilefs_tcp_cork = fp.sync = true
-        @socket.send("PUT #{@path.request_uri} HTTP/1.0\r\n" \
+        sock.mogilefs_tcp_cork = fp.sync = true
+        sock.send("PUT #{uri.request_uri} HTTP/1.0\r\n" \
                      "Content-Length: #{file_size}\r\n\r\n", 0)
-        sysrwloop(fp, @socket)
-        @socket.mogilefs_tcp_cork = false
+        sysrwloop(fp, sock)
+        sock.mogilefs_tcp_cork = false
       end
     else
-      @socket.send("PUT #{@path.request_uri} HTTP/1.0\r\n" \
+      sock.send("PUT #{uri.request_uri} HTTP/1.0\r\n" \
                    "Content-Length: #{length}\r\n\r\n#{string}", 0)
     end
 
-    if connected? then
-      line = @socket.gets
-      if line.nil?
-        raise EmptyResponseError, 'Unable to read response line from server'
-      end
+    line = sock.gets or
+      raise EmptyResponseError, 'Unable to read response line from server'
 
-      if line =~ %r%^HTTP/\d+\.\d+\s+(\d+)% then
-        status = Integer $1
-        case status
-        when 200..299 then # success!
-        else
-          raise BadResponseError, "HTTP response status from upload: #{status}"
-        end
+    if line =~ %r%^HTTP/\d+\.\d+\s+(\d+)% then
+      case $1.to_i
+      when 200..299 then # success!
       else
-        raise InvalidResponseError, "Response line not understood: #{line}"
+        raise BadResponseError, "HTTP response status from upload: #{$1}"
       end
-
-      @socket.close
+    else
+      raise UnparseableResponseError, "Response line not understood: #{line}"
     end
 
-    @mg.backend.create_close(:fid => @fid, :devid => @devid,
+    @mg.backend.create_close(:fid => @fid, :devid => devid,
                              :domain => @mg.domain, :key => @key,
-                             :path => @path, :size => length)
-    return file_size if @big_io
-    return nil
-  end
+                             :path => uri.to_s, :size => file_size)
+    file_size
+  end # def upload
 
-  private
+  def close
+    try_dests = @dests.dup
+    last_err = nil
 
-  def connected?
-    return !(@socket.nil? or @socket.closed?)
-  end
+    loop do
+      devid, url = try_dests.shift
+      devid && url or break
 
-  def connect_socket
-    return @socket if connected?
-
-    next_path
-
-    if @path.nil? then
-      @tried.clear
-      next_path
-      raise NoStorageNodesError if @path.nil?
-    end
-
-    @socket = Socket.mogilefs_new @path.host, @path.port
-  end
-
-  def next_path
-    @path = nil
-    @dests.each do |dest|
-      unless @tried.include? dest then
-        @path = dest
-        return
+      uri = URI.parse(url)
+      begin
+        bytes = upload(devid, uri)
+        @devid, @uri = devid, uri
+        return bytes
+      rescue SystemCallError, Errno::ECONNREFUSED, MogileFS::Timeout,
+             EmptyResponseError, BadResponseError,
+             UnparseableResponseError => err
+        last_err = @tried[url] = err
       end
     end
+
+    raise last_err ? last_err : NoStorageNodesError
   end
 
 end

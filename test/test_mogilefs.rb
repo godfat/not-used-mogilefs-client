@@ -247,6 +247,41 @@ class TestMogileFS__MogileFS < TestMogileFS
       TempServer.destroy_all!
   end
 
+  def test_store_content_multi_dest_failover
+    received1 = received2 = nil
+    expected = "PUT /path HTTP/1.0\r\nContent-Length: 4\r\n\r\ndata"
+
+    t1 = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      received1 = client.recv(4096, 0)
+      client.send("HTTP/1.0 500 Internal Server Error\r\n\r\n", 0)
+      client.close
+    end)
+
+    t2 = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      received2 = client.recv(4096, 0)
+      client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
+      client.close
+    end)
+
+    @backend.create_open = {
+      'dev_count' => '2',
+      'devid_1' => '1',
+      'path_1' => "http://127.0.0.1:#{t1.port}/path",
+      'devid_2' => '2',
+      'path_2' => "http://127.0.0.1:#{t2.port}/path",
+    }
+
+    @client.store_content 'new_key', 'test', 'data'
+    assert_equal expected, received1
+    assert_equal expected, received2
+    ensure
+      TempServer.destroy_all!
+  end
+
   def test_store_content_http_fail
     t = TempServer.new(Proc.new do |serv, accept|
       client, client_addr = serv.accept
