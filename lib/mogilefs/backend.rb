@@ -146,13 +146,6 @@ class MogileFS::Backend
   private unless defined? $TESTING
 
   ##
-  # Returns a new Socket (TCP) connected to +port+ on +host+.
-
-  def connect_to(host, port)
-    Socket.mogilefs_new(host, port, @timeout)
-  end
-
-  ##
   # Performs the +cmd+ request with +args+.
 
   def do_request(cmd, args)
@@ -249,7 +242,7 @@ class MogileFS::Backend
       next if @dead.include? host and @dead[host] > now - 5
 
       begin
-        @socket = connect_to(*host.split(':'))
+        @socket = Socket.mogilefs_new(*(host.split(/:/) << @timeout))
       rescue SystemCallError, MogileFS::Timeout
         @dead[host] = now
         next
