@@ -64,7 +64,7 @@ class TestMogileFS__MogileFS < TestMogileFS
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
-      syswrloop(tmpfp, client)
+      sysrwloop(tmpfp, client)
       client.close
     end
     t1 = TempServer.new(svr)
@@ -75,9 +75,9 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
     data = Tempfile.new('test_mogilefs.dest_data')
+    read_nr = nr = 0
     @client.get_file_data('key') do |fp|
       buf = ''
-      read_nr = nr = 0
       loop do
         begin
           fp.sysread(16384, buf)
@@ -88,9 +88,9 @@ class TestMogileFS__MogileFS < TestMogileFS
           break
         end
       end
-      assert_equal expect_size, nr, "size mismatch"
-      assert_equal 1, accept_nr
     end
+    assert_equal expect_size, nr, "size mismatch"
+    assert_equal 1, accept_nr
   end
 
   def test_get_paths
