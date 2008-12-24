@@ -5,9 +5,6 @@ require 'fileutils'
 require 'tmpdir'
 require 'stringio'
 
-require 'rubygems'
-require 'test/zentest_assertions'
-
 $TESTING = true
 
 require 'mogilefs'
