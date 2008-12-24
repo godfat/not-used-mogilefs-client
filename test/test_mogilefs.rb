@@ -46,7 +46,7 @@ class TestMogileFS__MogileFS < TestMogileFS
 
   def test_get_file_data_http_block
     tmpfp = Tempfile.new('test_mogilefs.open_data')
-    nr = 100 # tested with 1000
+    nr = nr_chunks
     chunk_size = 1024 * 1024
     expect_size = nr * chunk_size
     header = "HTTP/1.0 200 OK\r\n" \
@@ -337,7 +337,7 @@ class TestMogileFS__MogileFS < TestMogileFS
     to_put = Tempfile.new('test_mogilefs.to_put')
     received = Tempfile.new('test_mogilefs.received')
 
-    nr = 10 # tested with 1000
+    nr = nr_chunks
     chunk_size = 1024 * 1024
     expect_size = nr * chunk_size
 
@@ -441,6 +441,13 @@ class TestMogileFS__MogileFS < TestMogileFS
       assert_equal({}, @client.sleep(2))
     end
   end
+
+  private
+
+    # tested with 1000, though it takes a while
+    def nr_chunks
+      ENV['NR_CHUNKS'] ? ENV['NR_CHUNKS'].to_i : 10
+    end
 
 end
 
