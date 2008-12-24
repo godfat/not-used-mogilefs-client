@@ -75,7 +75,7 @@ module MogileFS::Util
     if sockets[0]
       begin
         t0 = Time.now
-        r = select(sockets, nil, nil, timeout > 0 ? timeout : 0)
+        r = IO.select(sockets, nil, nil, timeout > 0 ? timeout : 0)
         timeout -= (Time.now - t0)
         break unless r && r[0]
         r[0].each do |sock|

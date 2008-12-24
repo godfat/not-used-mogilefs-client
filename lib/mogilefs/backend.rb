@@ -218,7 +218,7 @@ class MogileFS::Backend
     peer = nil
     loop do
       t0 = Time.now
-      found = select [socket], nil, nil, timeleft
+      found = IO.select([socket], nil, nil, timeleft)
       return true if found && found[0]
       timeleft -= (Time.now - t0)
 
