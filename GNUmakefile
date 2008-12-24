@@ -1,5 +1,4 @@
 all:: test
-SHELL = bash -e -o pipefail
 O := $(shell echo $$$$)
 
 T := $(wildcard test/test*.rb)
