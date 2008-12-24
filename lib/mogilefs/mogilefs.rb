@@ -88,9 +88,7 @@ class MogileFS::MogileFS < MogileFS::Client
     noverify = noverify ? 1 : 0
     res = @backend.get_paths(:domain => @domain, :key => key,
                              :noverify => noverify, :zone => zone)
-    paths = (1..res['paths'].to_i).map { |i| res["path#{i}"] }
-    return paths if paths.empty?
-    return paths if paths.first =~ /^http:\/\//
+    (1..res['paths'].to_i).map { |i| res["path#{i}"] }
   end
 
   ##
