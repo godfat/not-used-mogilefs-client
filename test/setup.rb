@@ -62,14 +62,14 @@ class TempServer
   end
 
   def initialize(server_proc)
-    @port = @sock = nil
+    @thr = @port = @sock = nil
     retries = 0
     begin
       @port = 1024 + rand(32768 - 1024)
       @sock = Socket.new(Socket::AF_INET, Socket::SOCK_STREAM, 0)
       @sock.bind(Socket.pack_sockaddr_in(@port, '127.0.0.1'))
       @sock.listen(5)
-    rescue Errno::EADDRINUSE, Errno::EACCESS
+    rescue Errno::EADDRINUSE, Errno::EACCES
       @sock.close rescue nil
       retry if (retries += 1) < 10
     end
