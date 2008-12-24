@@ -1,5 +1,6 @@
 require 'mogilefs'
 require 'mogilefs/util'
+require 'thread'
 
 ##
 # MogileFS::Backend communicates with the MogileFS trackers.
