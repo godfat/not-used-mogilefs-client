@@ -1,8 +1,13 @@
 require 'test/unit'
-
-$TESTING = true
-
 require 'mogilefs'
+
+class MogileFS::Backend
+  attr_accessor :timeout, :lasterr, :lasterrstr, :hosts
+end
+
+class MogileFS::Client
+  attr_accessor :hosts
+end
 
 class TestClient < Test::Unit::TestCase
 
