@@ -1,7 +1,7 @@
 require 'test/setup'
 require 'mogilefs/mysql'
 
-class TestMogileFS__MogileFS_Db_Backend < Test::Unit::TestCase
+class TestMogileFS__DbBackend < Test::Unit::TestCase
   def setup
     @my = FakeMysql.new
     @mgmy = MogileFS::Mysql.new(:mysql => @my)
