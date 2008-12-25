@@ -1,16 +1,18 @@
 all:: test
-O := $(shell echo $$$$)
 
 T := $(wildcard test/test*.rb)
-TO := $(subst .rb,.$(O).log, $(T))
+TO := $(subst .rb,.log,$(T))
 
-test: $(TO)
-	@cat $^ | ruby test/aggregate.rb
-	@$(RM) $^
+test: $(T)
+	@cat $(TO) | ruby test/aggregate.rb
+	@$(RM) $(TO)
 clean:
-	$(RM) test/*.log test/*.log+
+	$(RM) $(TO) $(addsuffix +,$(TO))
 
-t = $(basename $(notdir $<))
-%.$(O).log: %.rb
-	@echo $(t); ruby -I lib $< $(TEST_OPTS) > $@+ 2>&1
-	@mv $@+ $@
+t = $(basename $(notdir $@))
+t_log = $(subst .rb,.log,$@)
+
+$(T):
+	@echo $(t); ruby -I lib $@ $(TEST_OPTS) > $(t_log)+ 2>&1
+	@mv $(t_log)+ $(t_log)
+.PHONY: $(T)
