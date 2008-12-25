@@ -18,7 +18,9 @@ module MogileFS::Util
     # an optional second argument to use as the buffer to avoid
     # GC overhead of creating new strings in a loop
     buf = ' ' * CHUNK_SIZE # preallocate to avoid GC thrashing
-    io_wr.sync = true
+    io_rd.flush rescue nil # flush may be needed for sockets/pipes, be safe
+    io_wr.flush
+    io_rd.sync = io_wr.sync = true
     loop do
       b = begin
         io_rd.sysread(CHUNK_SIZE, buf)
