@@ -1,9 +1,9 @@
 require 'test/setup'
 require 'mogilefs'
-require 'mogilefs/util'
+require 'mogilefs/network'
 
-class TestUtils < Test::Unit::TestCase
-  include MogileFS::Util
+class TestNetwork < Test::Unit::TestCase
+  include MogileFS::Network
 
   def test_verify_uris
     good = TempServer.new(Proc.new do |serv,port|
