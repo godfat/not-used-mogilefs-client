@@ -259,6 +259,25 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_equal 1, accept_nr
   end
 
+  def test_bad_size_http
+    accept_nr = 0
+    t = TempServer.new(Proc.new do |serv,port|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.recv(4096, 0) rescue nil
+      assert_equal "HEAD /path HTTP/1.0\r\n\r\n", readed
+      client.send("HTTP/1.0 404 Not Found\r\nContent-Length: 5\r\n\r\n", 0)
+      accept_nr += 1
+      client.close
+    end)
+
+    path = "http://127.0.0.1:#{t.port}/path"
+    @backend.get_paths = { 'paths' => 1, 'path1' => path }
+
+    assert_nil @client.size('key')
+    assert_equal 1, accept_nr
+  end
+
   def test_store_content_http
     received = ''
     expected = "PUT /path HTTP/1.0\r\nContent-Length: 4\r\n\r\ndata"

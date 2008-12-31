@@ -20,6 +20,10 @@ class MogileFS::MogileFS < MogileFS::Client
   attr_accessor :get_file_data_timeout
 
   ##
+  # internal Regexp for matching an "HTTP 200 OK" head response
+  HTTP_200_OK = %r{\AHTTP/\d+\.\d+\s+200\s+}.freeze
+
+  ##
   # Creates a new MogileFS::MogileFS instance.  +args+ must include a key
   # :domain specifying the domain of this client.
 
@@ -207,14 +211,18 @@ class MogileFS::MogileFS < MogileFS::Client
                                    "HEAD #{url.request_uri} HTTP/1.0\r\n\r\n",
                                    @get_file_data_timeout)
           res = s.recv(4096, 0)
-
-          if cl = /^Content-Length:\s*(\d+)/i.match(res)
-            return cl[1].to_i
+          if res =~ HTTP_200_OK
+            head, body = res.split(/\r\n\r\n/, 2)
+            if head =~ /^Content-Length:\s*(\d+)/i
+              return $1.to_i
+            end
           end
           next
         rescue MogileFS::Timeout, Errno::ECONNREFUSED,
                EOFError, SystemCallError
           next
+        ensure
+          s.close rescue nil
         end
       else
         next unless File.exist? path
@@ -264,7 +272,7 @@ class MogileFS::MogileFS < MogileFS::Client
                                     @get_file_data_timeout)
       buf = sock.recv(4096, Socket::MSG_PEEK)
       head, body = buf.split(/\r\n\r\n/, 2)
-      if head =~ %r{\AHTTP/\d+\.\d+\s+200\s+}
+      if head =~ HTTP_200_OK
         sock.recv(head.size + 4, 0)
         return sock
       end
