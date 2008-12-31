@@ -44,6 +44,42 @@ class TestMogileFS__MogileFS < TestMogileFS
       TempServer.destroy_all!
   end
 
+  def test_get_file_data_http_not_found_failover
+    accept_nr = 0
+    svr1 = Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.recv(4096, 0)
+      assert(readed =~ \
+            %r{\AGET /dev1/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
+      client.send("HTTP/1.0 404 Not Found\r\n\r\ndata!", 0)
+      accept_nr += 1
+      client.close
+    end
+
+    svr2 = Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.recv(4096, 0)
+      assert(readed =~ \
+            %r{\AGET /dev2/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
+      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
+      accept_nr += 1
+      client.close
+    end
+
+    t1 = TempServer.new(svr1)
+    t2 = TempServer.new(svr2)
+    path1 = "http://127.0.0.1:#{t1.port}/dev1/0/000/000/0000000062.fid"
+    path2 = "http://127.0.0.1:#{t2.port}/dev2/0/000/000/0000000062.fid"
+    @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
+
+    assert_equal 'data!', @client.get_file_data('key')
+    assert_equal 2, accept_nr
+    ensure
+      TempServer.destroy_all!
+  end
+
   def test_get_file_data_http_block
     tmpfp = Tempfile.new('test_mogilefs.open_data')
     nr = nr_chunks

@@ -69,7 +69,7 @@ class MogileFS::MogileFS < MogileFS::Client
           sock = http_get_sock(URI.parse(path))
           return block_given? ? yield(sock) : sock.read
         rescue MogileFS::Timeout, Errno::ECONNREFUSED,
-               EOFError, SystemCallError
+               EOFError, SystemCallError, MogileFS::InvalidResponseError
           next
         end
       else
@@ -256,15 +256,20 @@ class MogileFS::MogileFS < MogileFS::Client
 
   protected
 
+    # given a URI, this returns a readable socket with ready data from the
+    # body of the response.
     def http_get_sock(uri)
       sock = Socket.mogilefs_new_request(uri.host, uri.port,
                                     "GET #{uri.request_uri} HTTP/1.0\r\n\r\n",
                                     @get_file_data_timeout)
       buf = sock.recv(4096, Socket::MSG_PEEK)
       head, body = buf.split(/\r\n\r\n/, 2)
-      head = sock.recv(head.size + 4, 0)
-
-      sock
+      if head =~ %r{\AHTTP/\d+\.\d+\s+200\s+}
+        sock.recv(head.size + 4, 0)
+        return sock
+      end
+      raise MogileFS::InvalidResponseError,
+            "GET on #{uri} returned: #{head.inspect}"
     end # def http_get_sock
 
 end
