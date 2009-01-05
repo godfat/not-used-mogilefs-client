@@ -15,4 +15,9 @@ t_log = $(subst .rb,.log,$@)
 $(T):
 	@echo $(t); ruby -I lib $@ $(TEST_OPTS) > $(t_log)+ 2>&1
 	@mv $(t_log)+ $(t_log)
-.PHONY: $(T)
+
+Manifest.txt:
+	git ls-files > $@+
+	mv $@+ $@
+
+.PHONY: $(T) Manifest.txt
