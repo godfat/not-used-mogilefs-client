@@ -71,7 +71,7 @@ env_cfg = {}
 if ENV["MOG_TRACKERS"]
   env_cfg[:hosts] = ENV["MOG_TRACKERS"].split(/\s*,\s*/)
 end
-if ENV["MOG_HOSTS"] && env_cfg[:hosts].empty?
+if ENV["MOG_HOSTS"] && (env_cfg[:hosts] || []).empty?
   env_cfg[:hosts] = ENV["MOG_HOSTS"].split(/\s*,\s*/)
 end
 env_cfg[:domain] = ENV["MOG_DOMAIN"] if ENV["MOG_DOMAIN"]
