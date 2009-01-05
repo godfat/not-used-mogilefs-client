@@ -271,9 +271,9 @@ class MogileFS::Admin < MogileFS::Client
   #          "host1_status"=>"alive",
   #          "host1_altmask"=>""}
   #   admin.clean 'hosts', 'host', res
-  # 
+  #
   # Returns:
-  # 
+  #
   #   [{"status"=>"alive",
   #     "http_get_port"=>"",
   #     "http_port"=>"",

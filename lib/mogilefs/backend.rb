@@ -90,7 +90,7 @@ class MogileFS::Backend
   add_command :list_keys
 
   # MogileFS::Backend commands
-  
+
   add_command :get_hosts
   add_command :get_devices
   add_command :list_fids
