@@ -85,21 +85,22 @@ class MogileFS::HTTPFile < StringIO
   def upload(devid, uri)
     file_size = length
     sock = Socket.mogilefs_new(uri.host, uri.port)
+    sock.mogilefs_tcp_cork = true
 
     if @big_io
       # Don't try to run out of memory
       File.open(@big_io) do |fp|
         file_size = fp.stat.size
-        sock.mogilefs_tcp_cork = fp.sync = true
-        sock.send("PUT #{uri.request_uri} HTTP/1.0\r\n" \
-                     "Content-Length: #{file_size}\r\n\r\n", 0)
+        fp.sync = true
+        syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
+                            "Content-Length: #{file_size}\r\n\r\n")
         sysrwloop(fp, sock)
-        sock.mogilefs_tcp_cork = false
       end
     else
-      sock.send("PUT #{uri.request_uri} HTTP/1.0\r\n" \
-                   "Content-Length: #{length}\r\n\r\n#{string}", 0)
+      syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
+                          "Content-Length: #{length}\r\n\r\n#{string}")
     end
+    sock.mogilefs_tcp_cork = false
 
     line = sock.gets or
       raise EmptyResponseError, 'Unable to read response line from server'

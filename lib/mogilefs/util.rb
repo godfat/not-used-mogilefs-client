@@ -42,25 +42,23 @@ module MogileFS::Util
     copied
   end # sysrwloop
 
-  private
-
-    # writes the contents of buf to io_wr in full w/o blocking
-    def syswrite_full(io_wr, buf)
-      written = 0
-      loop do
-        w = begin
-          io_wr.syswrite(buf)
-        rescue Errno::EAGAIN, Errno::EINTR
-          IO.select(nil, [io_wr], nil, nil)
-          retry
-        end
-        written += w
-        break if w == buf.size
-        buf = buf[w..-1]
+  # writes the contents of buf to io_wr in full w/o blocking
+  def syswrite_full(io_wr, buf)
+    written = 0
+    loop do
+      w = begin
+        io_wr.syswrite(buf)
+      rescue Errno::EAGAIN, Errno::EINTR
+        IO.select(nil, [io_wr], nil, nil)
+        retry
       end
-
-      written
+      written += w
+      break if w == buf.size
+      buf = buf[w..-1]
     end
+
+    written
+  end
 
 end
 
