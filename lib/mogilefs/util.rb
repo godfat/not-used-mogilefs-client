@@ -43,21 +43,28 @@ module MogileFS::Util
   end # sysrwloop
 
   # writes the contents of buf to io_wr in full w/o blocking
-  def syswrite_full(io_wr, buf)
+  def syswrite_full(io_wr, buf, timeout = nil)
     written = 0
     loop do
-      w = begin
-        io_wr.syswrite(buf)
-      rescue Errno::EAGAIN, Errno::EINTR
-        IO.select(nil, [io_wr], nil, nil)
-        retry
-      end
-      written += w
-      break if w == buf.size
-      buf = buf[w..-1]
-    end
+      begin
+        w = io_wr.syswrite(buf)
+        written += w
+        return written if w == buf.size
+        buf = buf[w..-1]
 
-    written
+        # a short syswrite means the next syswrite will likely block
+        # inside the interpreter.  so force an IO.select on it so we can
+        # timeout there if one was specified
+        raise Errno::EAGAIN if timeout
+      rescue Errno::EAGAIN, Errno::EINTR
+        t0 = Time.now if timeout
+        IO.select(nil, [io_wr], nil, timeout)
+        if timeout && ((timeout -= (Time.now - t0)) < 0)
+          raise MogileFS::Timeout, 'syswrite_full timeout'
+        end
+      end
+    end
+    # should never get here
   end
 
 end
@@ -140,7 +147,7 @@ class Socket
     def mogilefs_new_request(host, port, request, timeout = 5.0)
       t0 = Time.now
       sock = mogilefs_new(host, port, timeout)
-      syswrite_full(sock, request)
+      syswrite_full(sock, request, timeout)
       timeout -= (Time.now - t0)
       raise MogileFS::Timeout, 'socket read timeout' if timeout < 0
       r = IO.select([sock], nil, nil, timeout)

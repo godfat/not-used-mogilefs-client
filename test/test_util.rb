@@ -37,4 +37,23 @@ class TestMogileFS__Util < Test::Unit::TestCase
     assert_equal((sent + big_string.length), readed)
   end
 
+  def test_write_timeout
+    done = Queue.new
+
+    svr = Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      readed = client.readpartial(16384)
+      sleep
+    end
+    t = TempServer.new(svr)
+    s = Socket.mogilefs_new('127.0.0.1', t.port)
+    tmp = s.getsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF)
+    sndbuf_bytes = tmp.unpack('i')[0]
+    big_string = ' ' * (sndbuf_bytes * 10)
+
+    assert_raises(MogileFS::Timeout) { syswrite_full(s, big_string, 0.1) }
+    s.close rescue nil
+  end
+
 end
