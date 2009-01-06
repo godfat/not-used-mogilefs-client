@@ -1,5 +1,6 @@
 require 'mogilefs'
 require 'socket'
+require 'mogilefs/util'
 
 module MogileFS::Network
   # given an array of URIs, verify that at least one of them is accessible
@@ -24,6 +25,8 @@ module MogileFS::Network
       break unless r && r[1]
       r[1].each do |sock|
         begin
+          # we don't about short/interrupted writes here, if the following
+          # request fails or blocks then the server is flat-out hopeless
           sock.syswrite "HEAD #{uri_socks[sock].request_uri} HTTP/1.0\r\n\r\n"
           sockets << sock
         rescue
@@ -54,5 +57,8 @@ module MogileFS::Network
     ensure
       uri_socks.keys.each { |sock| sock.close rescue nil }
   end
+
+  private
+    include MogileFS::Util
 
 end # module MogileFS::Network

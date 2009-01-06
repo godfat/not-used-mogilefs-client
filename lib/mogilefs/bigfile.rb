@@ -1,6 +1,7 @@
 require 'zlib'
 require 'digest/md5'
 require 'uri'
+require 'mogilefs/util'
 
 module MogileFS::Bigfile
   GZIP_HEADER = "\x1f\x8b".freeze # mogtool(1) has this
@@ -65,12 +66,14 @@ module MogileFS::Bigfile
       total += w
     end
 
-    wr_io.syswrite(zi.finish) if zi
+    syswrite_full(wr_io, zi.finish) if zi
 
     [ total, info ]
   end
 
   private
+
+    include MogileFS::Util
 
     ##
     # parses the contents of a _big_info: string or IO object

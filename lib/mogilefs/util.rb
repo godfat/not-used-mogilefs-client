@@ -132,13 +132,15 @@ class Socket
       raise MogileFS::Timeout, 'socket write timeout'
     end
 
+    include MogileFS::Util
+
     # Makes a request on a new TCP Socket and returns with a readble socket
     # within the given timeout.
     # This raises MogileFS::Timeout if timeout expires
     def mogilefs_new_request(host, port, request, timeout = 5.0)
       t0 = Time.now
       sock = mogilefs_new(host, port, timeout)
-      sock.syswrite(request)
+      syswrite_full(sock, request)
       timeout -= (Time.now - t0)
       raise MogileFS::Timeout, 'socket read timeout' if timeout < 0
       r = IO.select([sock], nil, nil, timeout)
