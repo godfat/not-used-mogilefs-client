@@ -19,12 +19,12 @@ lib/mogilefs/pool.rb
 lib/mogilefs/util.rb
 test/.gitignore
 test/aggregate.rb
-test/db_backend.rb
 test/setup.rb
 test/test_admin.rb
 test/test_backend.rb
 test/test_bigfile.rb
 test/test_client.rb
+test/test_db_backend.rb
 test/test_mogilefs.rb
 test/test_mysql.rb
 test/test_network.rb
