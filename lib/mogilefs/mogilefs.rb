@@ -89,9 +89,10 @@ class MogileFS::MogileFS < MogileFS::Client
   # Get the paths for +key+.
 
   def get_paths(key, noverify = true, zone = nil)
-    noverify = noverify ? 1 : 0
-    res = @backend.get_paths(:domain => @domain, :key => key,
-                             :noverify => noverify, :zone => zone)
+    opts = { :domain => @domain, :key => key,
+             :noverify => noverify ? 1 : 0, :zone => zone }
+    @backend.respond_to?(:_get_paths) and return @backend._get_paths(opts)
+    res = @backend.get_paths(opts)
     (1..res['paths'].to_i).map { |i| res["path#{i}"] }
   end
 

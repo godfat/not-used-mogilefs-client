@@ -82,7 +82,7 @@ class MogileFS::Mysql
 
   ##
   # Get the paths for +key+.
-  def get_paths(params = {})
+  def _get_paths(params = {})
     zone = params[:zone]
     noverify = (params[:noverify] == 1) # TODO this is unused atm
     dmid = refresh_domain[params[:domain]] or \

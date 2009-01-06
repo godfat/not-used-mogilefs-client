@@ -50,7 +50,7 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     @my.expect << [ [ 1 ], [ 3 ] ] # devids
     expect = [ "http://10.0.0.1:7600/dev1/0/000/000/0000000012.fid",
                "http://10.0.0.3:7500/dev3/0/000/000/0000000012.fid" ]
-    assert_equal expect, @mg.get_paths(:domain => 'test', :key => 'fookey')
+    assert_equal expect, @mg._get_paths(:domain => 'test', :key => 'fookey')
   end
 
   def test_get_paths_alt
@@ -59,7 +59,7 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
     expect = [ "http://192.168.0.1:7600/dev1/0/000/000/0000000012.fid",
                "http://10.0.0.3:7500/dev3/0/000/000/0000000012.fid"]
     params = { :domain => 'test', :key => 'fookey', :zone => 'alt' }
-    assert_equal expect, @mg.get_paths(params)
+    assert_equal expect, @mg._get_paths(params)
   end
 
   def test_list_keys
