@@ -159,6 +159,7 @@ class TestBackend < Test::Unit::TestCase
 
   def test_socket_robust
     bad_accept_nr = accept_nr = 0
+    queue = Queue.new
     bad = Proc.new { |serv,port| sleep; bad_accept_nr += 1 }
     good = Proc.new do |serv,port|
       client, client_addr = serv.accept
@@ -166,6 +167,7 @@ class TestBackend < Test::Unit::TestCase
       accept_nr += 1
       client.send '.', 0
       client.flush
+      queue.push true
       sleep
     end
     nr = 10
@@ -179,6 +181,7 @@ class TestBackend < Test::Unit::TestCase
         assert_equal({}, @backend.dead)
         t1.destroy!
         @backend.socket
+        wait = queue.pop
       ensure
         TempServer.destroy_all!
       end
