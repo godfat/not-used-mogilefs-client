@@ -136,8 +136,8 @@ class TestBackend < Test::Unit::TestCase
 
   def test_readable_eh_not_readable
     tmp = TempServer.new(Proc.new { |a,b| sleep })
-    @backend = MogileFS::Backend.new :hosts => [ "127.0.0.1:#{tmp.port}" ]
-
+    @backend = MogileFS::Backend.new(:hosts => [ "127.0.0.1:#{tmp.port}" ],
+                                     :timeout => 0.5)
     begin
       @backend.readable?
     rescue MogileFS::UnreadableSocketError => e
