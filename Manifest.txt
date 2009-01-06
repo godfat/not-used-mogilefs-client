@@ -29,3 +29,4 @@ test/test_mogilefs.rb
 test/test_mysql.rb
 test/test_network.rb
 test/test_pool.rb
+test/test_util.rb
