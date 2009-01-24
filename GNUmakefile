@@ -1,3 +1,4 @@
+# use GNU Make to run tests in parallel, and without depending on Rubygems
 all:: test
 
 T := $(wildcard test/test*.rb)

@@ -2,11 +2,24 @@
 
 * use a set of standard exceptions based on MogileFS::Error,
   this is an incompatible API change (hence the 2.0.0 version number).
+* remove NFS support since it's gone in MogileFS 2.x and NFS is horrible
 * mog timeouts and retries increased
-* more consistent handling of bad sockets
+* more consistent handling of bad sockets, all sockets used internally
+  are now explicitly non-blocking and IO.select is used for timeouts
+  instead of using threads behind our backs
 * remove open-uri and net/http dependencies, they were bad with large files
 * add paths_size() method, allowing single mogilefsd call to get size and paths
 * add read-only MogileFS::Mysql driver, allowing mogilefsd to be bypassed
+* use TCP_NODELAY when available on sockets that require low latency
+* use TCP_CORK on bulk transfers to improve bandwidth usage
+* better HTTP error handling
+* verify_uris method in new MogileFS::Network module which allows
+  async verification of several URIs at once on the client side.
+* handle multiple device failover correctly on HTTP uploads
+* initial big_file read support (should be mogtool(1)-compatible)
+* unit tests can be run in parallel using GNU Make, 3x faster on a Core2 Duo
+* unit tests modified to use real sockets for easier verification of
+  timeout and error condition handling.
 
 = 1.3.1
 

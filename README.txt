@@ -17,6 +17,7 @@ http://rubyforge.org/tracker/?func=add&group_id=1513&atid=5921
 Source repository (git):
 
 git://git.bogomips.org/mogilefs-client.git
+
 http://git.bogomips.org/mogilefs-client.git
 
 Repository browser (cgit):
