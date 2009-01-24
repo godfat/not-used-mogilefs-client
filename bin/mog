@@ -121,7 +121,6 @@ begin
     filename = ARGV.shift or raise ArgumentError, '<filename> <key>'
     key = ARGV.shift or raise ArgumentError, '<filename> <key>'
     ARGV.shift and raise ArgumentError, '<filename> <key>'
-    cfg[:class] or raise ArgumentError, 'E: --class must be specified'
     store_file_retry(mg, key, cfg[:class], filename)
   when 'cat'
     ARGV.empty? and raise ArgumentError, '<key1> [<key2> ...]'

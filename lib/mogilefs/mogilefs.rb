@@ -101,11 +101,11 @@ class MogileFS::MogileFS < MogileFS::Client
   #
   # The +block+ operates like File.open.
 
-  def new_file(key, klass, bytes = 0, &block) # :yields: file
+  def new_file(key, klass = nil, bytes = 0, &block) # :yields: file
     raise MogileFS::ReadOnlyError if readonly?
-
-    res = @backend.create_open(:domain => @domain, :class => klass,
-                               :key => key, :multi_dest => 1)
+    opts = { :domain => @domain, :key => key, :multi_dest => 1 }
+    opts[:class] = klass if klass
+    res = @backend.create_open(opts)
 
     dests = if dev_count = res['dev_count'] # multi_dest succeeded
       (1..dev_count.to_i).map do |i|
