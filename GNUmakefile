@@ -17,8 +17,16 @@ $(T):
 	@echo $(t); ruby -I lib $@ $(TEST_OPTS) > $(t_log)+ 2>&1
 	@mv $(t_log)+ $(t_log)
 
+# using make instead of rake since Rakefile takes too long to load
 Manifest.txt:
 	git ls-files > $@+
 	mv $@+ $@
 
+libs := $(wildcard lib/*.rb lib/*/*.rb)
+flay_flags =
+flog_flags =
+flay: $(libs)
+	flay $(flay_flags) $^
+flog: $(libs)
+	flog $(flog_flags) $^
 .PHONY: $(T) Manifest.txt
