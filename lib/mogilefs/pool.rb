@@ -19,7 +19,7 @@ class MogileFS::Pool
       object = @klass.new(*@args)
       @objects << object
     end
-    return object
+    object
   end
 
   def put(o)

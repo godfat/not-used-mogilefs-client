@@ -54,7 +54,7 @@ class MogileFS::MogileFS < MogileFS::Client
       keys, after = list_keys prefix, after
     end
 
-    return nil
+    nil
   end
 
   ##
@@ -82,7 +82,7 @@ class MogileFS::MogileFS < MogileFS::Client
       end
     end
 
-    return nil
+    nil
   end
 
   ##
@@ -164,7 +164,7 @@ class MogileFS::MogileFS < MogileFS::Client
       mfp << content
     end
 
-    return content.length
+    content.length
   end
 
   ##
@@ -260,7 +260,7 @@ class MogileFS::MogileFS < MogileFS::Client
       end
     end
 
-    return keys, res['next_after']
+    [ keys, res['next_after'] ]
   end
 
   protected

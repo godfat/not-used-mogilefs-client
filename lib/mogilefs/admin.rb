@@ -40,9 +40,8 @@ class MogileFS::Admin < MogileFS::Client
   #     "altmask"=>""}]
 
   def get_hosts(hostid = nil)
-    args = hostid ? { :hostid => hostid } : {}
-    res = @backend.get_hosts args
-    return clean('hosts', 'host', res)
+    clean('hosts', 'host',
+          @backend.get_hosts(hostid ? { :hostid => hostid } : {}))
   end
 
   ##
@@ -62,9 +61,8 @@ class MogileFS::Admin < MogileFS::Client
   #     "mb_total"=>""}]
 
   def get_devices(devid = nil)
-    args = devid ? { :devid => devid } : {}
-    res = @backend.get_devices args
-    return clean('devices', 'dev', res)
+    clean('devices', 'dev',
+          @backend.get_devices(devid ? { :devid => devid } : {}))
   end
 
   ##
@@ -88,8 +86,8 @@ class MogileFS::Admin < MogileFS::Client
   #     "key"=>"new_new_key"}]
 
   def list_fids(from_fid, to_fid)
-    res = @backend.list_fids :from => from_fid, :to => to_fid
-    return clean('fid_count', 'fid_', res)
+    clean('fid_count', 'fid_',
+          @backend.list_fids(:from => from_fid, :to => to_fid))
   end
 
   ##
@@ -126,7 +124,7 @@ class MogileFS::Admin < MogileFS::Client
     stats.delete 'file' if stats['file'].empty?
     stats.delete 'replication' if stats['replication'].empty?
 
-    return stats
+    stats
   end
 
   ##
@@ -148,7 +146,7 @@ class MogileFS::Admin < MogileFS::Client
       domains[res["domain#{i}"]] = Hash[*domain.flatten]
     end
 
-    return domains
+    domains
   end
 
   ##
@@ -157,7 +155,7 @@ class MogileFS::Admin < MogileFS::Client
   def create_domain(domain)
     raise MogileFS::ReadOnlyError if readonly?
     res = @backend.create_domain :domain => domain
-    return res['domain'] unless res.nil?
+    res ? res['domain'] : nil
   end
 
   ##
@@ -165,8 +163,7 @@ class MogileFS::Admin < MogileFS::Client
 
   def delete_domain(domain)
     raise MogileFS::ReadOnlyError if readonly?
-    res = @backend.delete_domain :domain => domain
-    return !res.nil?
+    ! @backend.delete_domain(:domain => domain).nil?
   end
 
   ##
@@ -174,7 +171,7 @@ class MogileFS::Admin < MogileFS::Client
   # +mindevcount+ devices.  Returns nil on failure.
 
   def create_class(domain, klass, mindevcount)
-    return modify_class(domain, klass, mindevcount, :create)
+    modify_class(domain, klass, mindevcount, :create)
   end
 
   ##
@@ -182,7 +179,7 @@ class MogileFS::Admin < MogileFS::Client
   # devices.  Returns nil on failure.
 
   def update_class(domain, klass, mindevcount)
-    return modify_class(domain, klass, mindevcount, :update)
+    modify_class(domain, klass, mindevcount, :update)
   end
 
   ##
@@ -190,8 +187,7 @@ class MogileFS::Admin < MogileFS::Client
   # not.
 
   def delete_class(domain, klass)
-    res = @backend.delete_class :domain => domain, :class => klass
-    return !res.nil?
+    ! @backend.delete_class(:domain => domain, :class => klass).nil?
   end
 
   ##
@@ -202,14 +198,14 @@ class MogileFS::Admin < MogileFS::Client
     raise ArgumentError, "Must specify ip and port" unless \
       args.include? :ip and args.include? :port
 
-    return modify_host(host, args, 'create')
+    modify_host(host, args, 'create')
   end
 
   ##
   # Updates +host+ with +args+.  Returns true if successful, false if not.
 
   def update_host(host, args = {})
-    return modify_host(host, args, 'update')
+    modify_host(host, args, 'update')
   end
 
   ##
@@ -217,8 +213,7 @@ class MogileFS::Admin < MogileFS::Client
 
   def delete_host(host)
     raise MogileFS::ReadOnlyError if readonly?
-    res = @backend.delete_host :host => host
-    return !res.nil?
+    ! @backend.delete_host(:host => host).nil?
   end
 
   ##
@@ -227,8 +222,7 @@ class MogileFS::Admin < MogileFS::Client
 
   def change_device_state(host, device, state)
     raise MogileFS::ReadOnlyError if readonly?
-    res = @backend.set_state :host => host, :device => device, :state => state
-    return !res.nil?
+    ! @backend.set_state(:host => host, :device => device, :state => state).nil?
   end
 
   protected unless defined? $TESTING
@@ -242,7 +236,7 @@ class MogileFS::Admin < MogileFS::Client
     res = @backend.send("#{action}_class", :domain => domain, :class => klass,
                                           :mindevcount => mindevcount)
 
-    return res['class'] unless res.nil?
+    res ? res['class'] : nil
   end
 
   ##
@@ -251,8 +245,7 @@ class MogileFS::Admin < MogileFS::Client
 
   def modify_host(host, args = {}, action = 'create')
     args[:host] = host
-    res = @backend.send "#{action}_host", args
-    return !res.nil?
+    ! @backend.send("#{action}_host", args).nil?
   end
 
   ##
@@ -286,7 +279,7 @@ class MogileFS::Admin < MogileFS::Client
 
   def clean(count, prefix, res, underscore = true)
     underscore = underscore ? '_' : ''
-    return (1..res[count].to_i).map do |i|
+    (1..res[count].to_i).map do |i|
       dev = res.select { |k,_| k =~ /^#{prefix}#{i}#{underscore}/ }.map do |k,v|
         [k.sub(/^#{prefix}#{i}#{underscore}/, ''), v]
       end
