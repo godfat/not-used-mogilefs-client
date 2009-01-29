@@ -30,8 +30,7 @@ class MogileFS::Mysql
   # +after+ is nil the list starts at the beginning.
   def _list_keys(domain, prefix = '', after = '', limit = 1000, &block)
     # this code is based on server/lib/MogileFS/Worker/Query.pm
-    dmid = refresh_domain[domain] or \
-      raise MogileFS::Backend::DomainNotFoundError
+    dmid = get_dmid(domain)
 
     # don't modify passed arguments
     limit ||= 1000
@@ -66,8 +65,7 @@ class MogileFS::Mysql
   ##
   # Returns the size of +key+.
   def _size(domain, key)
-    dmid = refresh_domain[domain] or \
-      raise MogileFS::Backend::DomainNotFoundError
+    dmid = get_dmid(domain)
 
     sql = <<-EOS
     SELECT length FROM file
@@ -85,8 +83,7 @@ class MogileFS::Mysql
   def _get_paths(params = {})
     zone = params[:zone]
     noverify = (params[:noverify] == 1) # TODO this is unused atm
-    dmid = refresh_domain[params[:domain]] or \
-      raise MogileFS::Backend::DomainNotFoundError
+    dmid = get_dmid(params[:domain])
     devices = refresh_device or raise MogileFS::Backend::NoDevicesError
     urls = []
     sql = <<-EOS
@@ -100,7 +97,11 @@ class MogileFS::Mysql
     fid = res[0]
     sql = "SELECT devid FROM file_on WHERE fid = '#{@my.quote(fid)}'"
     query(sql).each do |devid,|
-      devinfo = devices[devid.to_i]
+      unless devinfo = devices[devid.to_i]
+        devices = refresh_device(true)
+        devinfo = devices[devid.to_i] or next
+      end
+
       port = devinfo[:http_get_port]
       host = zone && zone == 'alt' ? devinfo[:altip] : devinfo[:hostip]
       nfid = '%010u' % fid
@@ -155,6 +156,11 @@ class MogileFS::Mysql
       res.each { |dmid,namespace| tmp[namespace] = dmid.to_i }
       @last_update_domain = Time.now
       @cache_domain = tmp.freeze
+    end
+
+    def get_dmid(domain)
+      refresh_domain[domain] || refresh_domain(true)[domain] or \
+        raise MogileFS::Backend::DomainNotFoundError, domain
     end
 
 end
