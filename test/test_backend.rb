@@ -211,6 +211,7 @@ class TestBackend < Test::Unit::TestCase
   def test_url_decode
     assert_equal({"\272z" => "\360opy", "f\000" => "\272r"},
                  @backend.url_decode("%baz=%f0opy&f%00=%bar"))
+    assert_equal({}, @backend.url_decode(''))
   end
 
   def test_url_encode

@@ -166,7 +166,7 @@ class MogileFS::Backend
 
       readable?
 
-      return parse_response(socket.gets)
+      parse_response(socket.gets)
     end
   end
 
@@ -174,7 +174,7 @@ class MogileFS::Backend
   # Makes a new request string for +cmd+ and +args+.
 
   def make_request(cmd, args)
-    return "#{cmd} #{url_encode args}\r\n"
+    "#{cmd} #{url_encode args}\r\n"
   end
 
   # this converts an error code from a mogilefsd tracker to an exception
@@ -258,18 +258,16 @@ class MogileFS::Backend
   # Turns a url params string into a Hash.
 
   def url_decode(str)
-    pairs = str.split('&').map do |pair|
-      pair.split('=', 2).map { |v| url_unescape v }
-    end
-
-    return Hash[*pairs.flatten]
+    Hash[*(str.split(/&/).map { |pair|
+      pair.split(/=/, 2).map { |x| url_unescape(x) }
+    } ).flatten]
   end
 
   ##
   # Turns a Hash (or Array of pairs) into a url params string.
 
   def url_encode(params)
-    return params.map do |k,v|
+    params.map do |k,v|
       "#{url_escape k.to_s}=#{url_escape v.to_s}"
     end.join("&")
   end
@@ -278,14 +276,14 @@ class MogileFS::Backend
   # Escapes naughty URL characters.
 
   def url_escape(str)
-    return str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1[0] }.tr(' ', '+')
+    str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1[0] }.tr(' ', '+')
   end
 
   ##
   # Unescapes naughty URL characters.
 
   def url_unescape(str)
-    return str.gsub(/%([a-f0-9][a-f0-9])/i) { [$1.to_i(16)].pack 'C' }.tr('+', ' ')
+    str.gsub(/%([a-f0-9][a-f0-9])/i) { [$1.to_i(16)].pack 'C' }.tr('+', ' ')
   end
 
 end
