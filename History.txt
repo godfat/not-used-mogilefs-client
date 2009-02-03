@@ -1,4 +1,4 @@
-= 2.0.0 (WIP)
+= 2.0.0
 
 * use a set of standard exceptions based on MogileFS::Error,
   this is an incompatible API change (hence the 2.0.0 version number).
