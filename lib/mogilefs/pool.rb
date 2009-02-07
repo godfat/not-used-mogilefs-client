@@ -31,8 +31,10 @@ class MogileFS::Pool
   def use
     object = get
     yield object
+    nil
   ensure
     put object
+    nil
   end
 
   def purge
