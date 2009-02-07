@@ -82,7 +82,7 @@ end
 
 class TestMogileFS < Test::Unit::TestCase
 
-  undef_method :default_test
+  undef_method :default_test if method_defined?(:default_test)
 
   def setup
     @client = @klass.new :hosts => ['kaa:6001'], :domain => 'test'
