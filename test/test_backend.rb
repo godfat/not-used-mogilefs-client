@@ -43,7 +43,7 @@ class TestBackend < Test::Unit::TestCase
       client.send "OK 1 you=win\r\n", 0
     end)
 
-    @backend.hosts = "127.0.0.1:#{tmp.port}"
+    @backend.hosts = [ "127.0.0.1:#{tmp.port}" ]
 
     assert_equal({'you' => 'win'},
                  @backend.do_request('go!', { 'fight' => 'team fight!' }))
@@ -195,15 +195,18 @@ class TestBackend < Test::Unit::TestCase
     tmp = TempServer.new(Proc.new do |serv,port|
       client, client_addr = serv.accept
       accept_nr += 1
+      r = IO.select([client], [client])
+      client.syswrite(accept_nr.to_s)
       sleep
     end)
     @backend = MogileFS::Backend.new :hosts => [ "127.0.0.1:#{tmp.port}" ]
     assert @backend.socket
     assert ! @backend.socket.closed?
+    IO.select([@backend.socket])
+    resp = @backend.socket.sysread(4096)
     @backend.shutdown
     assert_equal nil, @backend.instance_variable_get(:@socket)
-    assert_equal 1, accept_nr
-
+    assert_equal 1, resp.to_i
     ensure
       TempServer.destroy_all!
   end
