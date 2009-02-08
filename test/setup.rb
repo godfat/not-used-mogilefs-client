@@ -62,13 +62,14 @@ class TempServer
 
   at_exit { TempServer.destroy_all! }
 
-  def initialize(server_proc)
-    @pid = @port = @sock = nil
+  def initialize(server_proc, port = nil)
+    @pid = @sock = nil
+    @port = port
     retries = 0
     begin
-      @port = 1024 + rand(32768 - 1024)
+      @port ||= 1024 + rand(32768 - 1024)
       @sock = Socket.new(Socket::AF_INET, Socket::SOCK_STREAM, 0)
-      @sock.bind(Socket.pack_sockaddr_in(@port, '127.0.0.1'))
+      @sock.bind(Socket.pack_sockaddr_in(@port.to_i, '127.0.0.1'))
       @sock.listen(5)
     rescue Errno::EADDRINUSE, Errno::EACCES
       @sock.close rescue nil

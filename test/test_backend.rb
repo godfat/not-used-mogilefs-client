@@ -176,7 +176,7 @@ class TestBackend < Test::Unit::TestCase
 
     nr.times do
       begin
-        t1 = TempServer.new(bad)
+        t1 = TempServer.new(bad, ENV['TEST_DEAD_PORT'])
         t2 = TempServer.new(good)
         hosts = ["0:#{t1.port}", "0:#{t2.port}"]
         @backend = MogileFS::Backend.new(:hosts => hosts.dup)
