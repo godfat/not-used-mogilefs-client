@@ -1,5 +1,4 @@
 require 'test/setup'
-require 'tempfile'
 
 class TestMogileFS__Util < Test::Unit::TestCase
   include MogileFS::Util
@@ -34,6 +33,8 @@ class TestMogileFS__Util < Test::Unit::TestCase
     s.close rescue nil
     IO.select([rd])
     assert_equal((sent + big_string.length), rd.sysread(4096).to_i)
+    ensure
+      t.destroy!
   end
 
   def test_write_timeout
@@ -51,6 +52,8 @@ class TestMogileFS__Util < Test::Unit::TestCase
 
     assert_raises(MogileFS::Timeout) { syswrite_full(s, big_string, 0.1) }
     s.close rescue nil
+    ensure
+      t.destroy!
   end
 
 end
