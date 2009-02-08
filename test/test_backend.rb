@@ -136,7 +136,7 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_readable_eh_not_readable
-    tmp = TempServer.new(Proc.new { |a,b| sleep })
+    tmp = TempServer.new(Proc.new { |serv,port| serv.accept; sleep })
     @backend = MogileFS::Backend.new(:hosts => [ "127.0.0.1:#{tmp.port}" ],
                                      :timeout => 0.5)
     begin
@@ -181,10 +181,14 @@ class TestBackend < Test::Unit::TestCase
         hosts = ["0:#{t1.port}", "0:#{t2.port}"]
         @backend = MogileFS::Backend.new(:hosts => hosts.dup)
         assert_equal({}, @backend.dead)
+        old_chld_handler = trap('CHLD', 'DEFAULT')
         t1.destroy!
+        Process.waitpid(t1.pid)
+        trap('CHLD', old_chld_handler)
         sock = @backend.socket
         assert_equal Socket, sock.class
         port = Socket.unpack_sockaddr_in(sock.getpeername).first
+        # p [ 'ports', "port=#{port}", "t1=#{t1.port}", "t2=#{t2.port}" ]
         assert_equal t2.port, port
         IO.select([sock])
         assert_equal '.', sock.sysread(1)

@@ -20,15 +20,16 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_get_file_data_http
-    accept = Tempfile.new('accept')
+    tmp = Tempfile.new('accept')
+    accept = File.open(tmp.path, "ab")
     svr = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
-      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
       accept.syswrite('.')
+      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
       client.close
     end
     t1 = TempServer.new(svr)
@@ -45,7 +46,8 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_get_file_data_http_not_found_failover
-    accept = Tempfile.new('accept')
+    tmp = Tempfile.new('accept')
+    accept = File.open(tmp.path, 'ab')
     svr1 = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
@@ -102,6 +104,7 @@ class TestMogileFS__MogileFS < TestMogileFS
             %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
       sysrwloop(tmpfp, client)
       client.close
+      exit 0
     end
     t1 = TempServer.new(svr)
     t2 = TempServer.new(svr)
