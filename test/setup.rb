@@ -1,9 +1,11 @@
 STDIN.sync = STDOUT.sync = STDERR.sync = true
 require 'test/unit'
-
+require 'tempfile'
 require 'fileutils'
 require 'tmpdir'
 require 'stringio'
+
+trap('CHLD') { Process.waitpid(-1, Process::WNOHANG) rescue nil }
 
 $TESTING = true
 
@@ -52,14 +54,16 @@ end
 
 require 'socket'
 class TempServer
-  attr_reader :port
+  attr_reader :port, :pid
 
   def self.destroy_all!
     ObjectSpace.each_object(TempServer) { |t| t.destroy! }
   end
 
+  at_exit { TempServer.destroy_all! }
+
   def initialize(server_proc)
-    @thr = @port = @sock = nil
+    @pid = @port = @sock = nil
     retries = 0
     begin
       @port = 1024 + rand(32768 - 1024)
@@ -70,12 +74,13 @@ class TempServer
       @sock.close rescue nil
       retry if (retries += 1) < 10
     end
-    @thr = Thread.new(@sock, @port) { |s,p| server_proc.call(s, p) }
+    @pid = fork { server_proc.call(@sock, @port) }
+    @sock.close rescue nil
   end
 
   def destroy!
     @sock.close rescue nil
-    Thread.kill(@thr) rescue nil
+    Process.kill('KILL', @pid) rescue nil
   end
 
 end

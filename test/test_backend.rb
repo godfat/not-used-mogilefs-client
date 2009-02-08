@@ -35,11 +35,11 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_do_request
-    received = ''
+    received = Tempfile.new('received')
     tmp = TempServer.new(Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
-      received = client.recv 4096
+      received.syswrite(client.recv(4096))
       client.send "OK 1 you=win\r\n", 0
     end)
 
@@ -47,7 +47,8 @@ class TestBackend < Test::Unit::TestCase
 
     assert_equal({'you' => 'win'},
                  @backend.do_request('go!', { 'fight' => 'team fight!' }))
-    assert_equal "go! fight=team+fight%21\r\n", received
+    received.sysseek(0)
+    assert_equal "go! fight=team+fight%21\r\n", received.sysread(4096)
     ensure
       TempServer.destroy_all!
   end
@@ -118,18 +119,18 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_readable_eh_readable
-    accept_nr = 0
+    accept = Tempfile.new('accept')
     tmp = TempServer.new(Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
-      accept_nr += 1
+      accept.syswrite('.')
       client.send('.', 0)
       sleep
     end)
 
     @backend = MogileFS::Backend.new :hosts => [ "127.0.0.1:#{tmp.port}" ]
     assert_equal true, @backend.readable?
-    assert_equal 1, accept_nr
+    assert_equal 1, accept.stat.size
     ensure
       TempServer.destroy_all!
   end
@@ -158,16 +159,17 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_socket_robust
-    bad_accept_nr = accept_nr = 0
-    queue = Queue.new
-    bad = Proc.new { |serv,port| sleep; bad_accept_nr += 1 }
+    bad_accept = Tempfile.new('bad_accept')
+    accept = Tempfile.new('accept')
+    bad = Proc.new do |serv,port|
+      client, client_addr = serv.accept
+      bad_accept.syswrite('!')
+    end
     good = Proc.new do |serv,port|
       client, client_addr = serv.accept
-      client.sync = true
-      accept_nr += 1
-      client.send '.', 0
-      client.flush
-      queue.push true
+      accept.syswrite('.')
+      client.syswrite('.')
+      client.close
       sleep
     end
     nr = 10
@@ -177,17 +179,21 @@ class TestBackend < Test::Unit::TestCase
         t1 = TempServer.new(bad)
         t2 = TempServer.new(good)
         hosts = ["0:#{t1.port}", "0:#{t2.port}"]
-        @backend = MogileFS::Backend.new(:hosts => hosts)
+        @backend = MogileFS::Backend.new(:hosts => hosts.dup)
         assert_equal({}, @backend.dead)
         t1.destroy!
-        @backend.socket
-        wait = queue.pop
+        sock = @backend.socket
+        assert_equal Socket, sock.class
+        port = Socket.unpack_sockaddr_in(sock.getpeername).first
+        assert_equal t2.port, port
+        IO.select([sock])
+        assert_equal '.', sock.sysread(1)
       ensure
         TempServer.destroy_all!
       end
     end # nr.times
-    assert_equal 0, bad_accept_nr
-    assert_equal nr, accept_nr
+    assert_equal 0, bad_accept.stat.size
+    assert_equal nr, accept.stat.size
   end
 
   def test_shutdown

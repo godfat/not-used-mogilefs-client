@@ -20,7 +20,7 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_get_file_data_http
-    accept_nr = 0
+    accept = Tempfile.new('accept')
     svr = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
@@ -28,7 +28,7 @@ class TestMogileFS__MogileFS < TestMogileFS
       assert(readed =~ \
             %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
       client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
-      accept_nr += 1
+      accept.syswrite('.')
       client.close
     end
     t1 = TempServer.new(svr)
@@ -39,13 +39,13 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
     assert_equal 'data!', @client.get_file_data('key')
-    assert_equal 1, accept_nr
+    assert_equal 1, accept.stat.size
     ensure
       TempServer.destroy_all!
   end
 
   def test_get_file_data_http_not_found_failover
-    accept_nr = 0
+    accept = Tempfile.new('accept')
     svr1 = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
@@ -53,7 +53,7 @@ class TestMogileFS__MogileFS < TestMogileFS
       assert(readed =~ \
             %r{\AGET /dev1/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
       client.send("HTTP/1.0 404 Not Found\r\n\r\ndata!", 0)
-      accept_nr += 1
+      accept.syswrite('.')
       client.close
     end
 
@@ -64,7 +64,7 @@ class TestMogileFS__MogileFS < TestMogileFS
       assert(readed =~ \
             %r{\AGET /dev2/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
       client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
-      accept_nr += 1
+      accept.syswrite('.')
       client.close
     end
 
@@ -75,7 +75,7 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 2, 'path1' => path1, 'path2' => path2 }
 
     assert_equal 'data!', @client.get_file_data('key')
-    assert_equal 2, accept_nr
+    assert_equal 2, accept.stat.size
     ensure
       TempServer.destroy_all!
   end
@@ -92,11 +92,11 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_equal expect_size + header.size, File.size(tmpfp.path)
     tmpfp.sysseek(0)
 
-    accept_nr = 0
+    accept = Tempfile.new('accept')
     svr = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
-      accept_nr += 1
+      accept.syswrite('.')
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev[12]/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
@@ -126,7 +126,7 @@ class TestMogileFS__MogileFS < TestMogileFS
       end
     end
     assert_equal expect_size, nr, "size mismatch"
-    assert_equal 1, accept_nr
+    assert_equal 1, accept.stat.size
   end
 
   def test_get_paths
@@ -241,14 +241,14 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_size_http
-    accept_nr = 0
+    accept = Tempfile.new('accept')
     t = TempServer.new(Proc.new do |serv,port|
       client, client_addr = serv.accept
       client.sync = true
       readed = client.recv(4096, 0) rescue nil
+      accept.syswrite('.')
       assert_equal "HEAD /path HTTP/1.0\r\n\r\n", readed
       client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\n", 0)
-      accept_nr += 1
       client.close
     end)
 
@@ -256,18 +256,18 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 1, 'path1' => path }
 
     assert_equal 5, @client.size('key')
-    assert_equal 1, accept_nr
+    assert_equal 1, accept.stat.size
   end
 
   def test_bad_size_http
-    accept_nr = 0
+    tmp = Tempfile.new('accept')
     t = TempServer.new(Proc.new do |serv,port|
       client, client_addr = serv.accept
       client.sync = true
       readed = client.recv(4096, 0) rescue nil
       assert_equal "HEAD /path HTTP/1.0\r\n\r\n", readed
       client.send("HTTP/1.0 404 Not Found\r\nContent-Length: 5\r\n\r\n", 0)
-      accept_nr += 1
+      tmp.syswrite('.')
       client.close
     end)
 
@@ -275,17 +275,17 @@ class TestMogileFS__MogileFS < TestMogileFS
     @backend.get_paths = { 'paths' => 1, 'path1' => path }
 
     assert_nil @client.size('key')
-    assert_equal 1, accept_nr
+    assert_equal 1, tmp.stat.size
   end
 
   def test_store_content_http
-    received = ''
+    received = Tempfile.new('recieved')
     expected = "PUT /path HTTP/1.0\r\nContent-Length: 4\r\n\r\ndata"
 
     t = TempServer.new(Proc.new do |serv, accept|
       client, client_addr = serv.accept
       client.sync = true
-      received = client.recv(4096, 0)
+      received.syswrite(client.recv(4096, 0))
       client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
       client.close
     end)
@@ -297,19 +297,21 @@ class TestMogileFS__MogileFS < TestMogileFS
 
     @client.store_content 'new_key', 'test', 'data'
 
-    assert_equal expected, received
+    received.sysseek(0)
+    assert_equal expected, received.sysread(4096)
     ensure
       TempServer.destroy_all!
   end
 
   def test_store_content_multi_dest_failover
-    received1 = received2 = nil
+    received1 = Tempfile.new('received')
+    received2 = Tempfile.new('received')
     expected = "PUT /path HTTP/1.0\r\nContent-Length: 4\r\n\r\ndata"
 
     t1 = TempServer.new(Proc.new do |serv, accept|
       client, client_addr = serv.accept
       client.sync = true
-      received1 = client.recv(4096, 0)
+      received1.syswrite(client.recv(4096, 0))
       client.send("HTTP/1.0 500 Internal Server Error\r\n\r\n", 0)
       client.close
     end)
@@ -317,7 +319,7 @@ class TestMogileFS__MogileFS < TestMogileFS
     t2 = TempServer.new(Proc.new do |serv, accept|
       client, client_addr = serv.accept
       client.sync = true
-      received2 = client.recv(4096, 0)
+      received2.syswrite(client.recv(4096, 0))
       client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
       client.close
     end)
@@ -331,8 +333,10 @@ class TestMogileFS__MogileFS < TestMogileFS
     }
 
     @client.store_content 'new_key', 'test', 'data'
-    assert_equal expected, received1
-    assert_equal expected, received2
+    received1.sysseek(0)
+    received2.sysseek(0)
+    assert_equal expected, received1.sysread(4096)
+    assert_equal expected, received2.sysread(4096)
     ensure
       TempServer.destroy_all!
   end
@@ -357,12 +361,12 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_store_content_http_empty
-    received = ''
+    received = Tempfile.new('received')
     expected = "PUT /path HTTP/1.0\r\nContent-Length: 0\r\n\r\n"
     t = TempServer.new(Proc.new do |serv, accept|
       client, client_addr = serv.accept
       client.sync = true
-      received = client.recv(4096, 0)
+      received.syswrite(client.recv(4096, 0))
       client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
       client.close
     end)
@@ -373,7 +377,8 @@ class TestMogileFS__MogileFS < TestMogileFS
     }
 
     @client.store_content 'new_key', 'test', ''
-    assert_equal expected, received
+    received.sysseek(0)
+    assert_equal expected, received.sysread(4096)
   end
 
   def test_store_content_nfs
@@ -406,17 +411,19 @@ class TestMogileFS__MogileFS < TestMogileFS
     assert_equal expect_size + header.size, expect.stat.size
     assert_equal expect_size, to_put.stat.size
 
-    readed = 0
+    readed = Tempfile.new('readed')
     t = TempServer.new(Proc.new do |serv, accept|
       client, client_addr = serv.accept
       client.sync = true
+      nr = 0
       loop do
         buf = client.readpartial(8192) or break
         break if buf.length == 0
         assert_equal buf.length, received.syswrite(buf)
-        readed += buf.length
-        break if readed >= expect.stat.size
+        nr += buf.length
+        break if nr >= expect.stat.size
       end
+      readed.syswrite("#{nr}")
       client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
       client.close
     end)
@@ -427,7 +434,8 @@ class TestMogileFS__MogileFS < TestMogileFS
     }
 
     @client.store_file('new_key', 'test', to_put.path)
-    assert_equal expect.stat.size, readed
+    readed.sysseek(0)
+    assert_equal expect.stat.size, readed.sysread(4096).to_i
 
     ENV['PATH'].split(/:/).each do |path|
       cmp_bin = "#{path}/cmp"

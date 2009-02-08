@@ -5,20 +5,20 @@ class TestMogileFS__Util < Test::Unit::TestCase
   include MogileFS::Util
 
   def test_mogilefs_write
-    done = Queue.new
+    rd, wr = IO.pipe
 
     svr = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
-      readed = 0
+      nr = 0
       loop do
         begin
-          readed += client.readpartial(16384).length
+          nr += client.readpartial(16384).length
         rescue EOFError
           break
         end
       end
-      done << readed
+      wr.syswrite("#{nr}\n")
       client.close rescue nil
     end
     t = TempServer.new(svr)
@@ -32,14 +32,11 @@ class TestMogileFS__Util < Test::Unit::TestCase
 
     syswrite_full(s, big_string)
     s.close rescue nil
-    readed = done.pop
-
-    assert_equal((sent + big_string.length), readed)
+    IO.select([rd])
+    assert_equal((sent + big_string.length), rd.sysread(4096).to_i)
   end
 
   def test_write_timeout
-    done = Queue.new
-
     svr = Proc.new do |serv, port|
       client, client_addr = serv.accept
       client.sync = true
