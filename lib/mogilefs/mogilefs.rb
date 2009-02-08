@@ -148,7 +148,7 @@ class MogileFS::MogileFS < MogileFS::Client
 	  mfp.big_io = file
 	  return
 	else
-          return File.open(file) { |fp| sysrwloop(fp, mfp) }
+          return File.open(file, "rb") { |fp| sysrwloop(fp, mfp) }
         end
       end
     end

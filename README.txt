@@ -60,7 +60,7 @@ Then install the gem:
 
   # Store the contents of 'image.jpeg' into the key 'my_image' with a class of
   # 'image' using an open IO.
-  File.open 'image.jpeg' do |fp|
+  File.open 'image.jpeg', 'rb' do |fp|
     mg.store_file 'my_image', 'image', fp
   end
 

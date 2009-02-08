@@ -1,3 +1,6 @@
+= 2.0.1 (WIP)
+* Ruby 1.9 compatibility
+
 = 2.0.0
 
 * use a set of standard exceptions based on MogileFS::Error,

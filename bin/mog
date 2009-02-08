@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 require 'mogilefs'
 require 'optparse'
+[ STDIN, STDOUT, STDERR].each { |io| io.binmode }
 
 trap('INT') { exit 130 }
 trap('PIPE') { exit 0 }

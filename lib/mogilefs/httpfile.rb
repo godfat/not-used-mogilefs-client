@@ -50,6 +50,7 @@ class MogileFS::HTTPFile < StringIO
 
   def self.open(*args)
     fp = new(*args)
+    fp.set_encoding(Encoding::BINARY) if fp.respond_to?(:set_encoding)
 
     return fp unless block_given?
 
@@ -89,7 +90,7 @@ class MogileFS::HTTPFile < StringIO
 
     if @big_io
       # Don't try to run out of memory
-      File.open(@big_io) do |fp|
+      File.open(@big_io, "rb") do |fp|
         file_size = fp.stat.size
         fp.sync = true
         syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
