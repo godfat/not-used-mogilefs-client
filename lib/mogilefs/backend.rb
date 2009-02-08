@@ -274,9 +274,14 @@ class MogileFS::Backend
 
   ##
   # Escapes naughty URL characters.
-
-  def url_escape(str)
-    str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1[0] }.tr(' ', '+')
+  if ''.respond_to?(:ord) # Ruby 1.9
+    def url_escape(str)
+      str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1.ord }.tr(' ', '+')
+    end
+  else # Ruby 1.8
+    def url_escape(str)
+      str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1[0] }.tr(' ', '+')
+    end
   end
 
   ##
