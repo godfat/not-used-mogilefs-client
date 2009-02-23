@@ -123,6 +123,8 @@ class TestMogileFS__MogileFS < TestMogileFS
           read_nr = buf.size
           nr += read_nr
           assert_equal read_nr, data.syswrite(buf), "partial write"
+        rescue Errno::EAGAIN
+          retry
         rescue EOFError
           break
         end
