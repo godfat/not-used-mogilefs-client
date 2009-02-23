@@ -161,7 +161,11 @@ class MogileFS::MogileFS < MogileFS::Client
     raise MogileFS::ReadOnlyError if readonly?
 
     new_file key, klass do |mfp|
-      mfp << content
+      if content.is_a?(MogileFS::Util::StoreContent)
+        mfp.streaming_io = content
+      else
+        mfp << content
+      end
     end
 
     content.length

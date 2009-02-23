@@ -308,6 +308,46 @@ class TestMogileFS__MogileFS < TestMogileFS
       TempServer.destroy_all!
   end
 
+
+  def test_store_content_with_writer_callback
+    received = Tempfile.new('recieved')
+    expected = "PUT /path HTTP/1.0\r\nContent-Length: 40\r\n\r\n"
+    10.times do
+      expected += "data"
+    end
+    t = TempServer.new(Proc.new do |serv, accept|
+      client, client_addr = serv.accept
+      client.sync = true
+      nr = 0
+      loop do
+        buf = client.readpartial(8192) or break
+        break if buf.length == 0
+        assert_equal buf.length, received.syswrite(buf)
+        nr += buf.length
+        break if nr >= expected.size
+      end
+      client.send("HTTP/1.0 200 OK\r\n\r\n", 0)
+      client.close
+    end)
+
+    @backend.create_open = {
+      'devid' => '1',
+      'path' => "http://127.0.0.1:#{t.port}/path",
+    }
+
+    cbk = MogileFS::Util::StoreContent.new(40) do |write_callback|
+      10.times do
+        write_callback.call("data")
+      end
+    end
+    @client.store_content('new_key', 'test', cbk)
+
+    received.sysseek(0)
+    assert_equal expected, received.sysread(4096)
+    ensure
+      TempServer.destroy_all!
+  end
+
   def test_store_content_multi_dest_failover
     received1 = Tempfile.new('received')
     received2 = Tempfile.new('received')

@@ -67,6 +67,16 @@ module MogileFS::Util
     # should never get here
   end
 
+  class StoreContent < Proc
+    def initialize(total_size, &writer_proc)
+      @total_size = total_size
+      super(&writer_proc)
+    end
+    def length
+      @total_size
+    end
+  end
+
 end
 
 require 'timeout'

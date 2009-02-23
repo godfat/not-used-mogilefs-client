@@ -44,6 +44,8 @@ class MogileFS::HTTPFile < StringIO
 
   attr_accessor :big_io
 
+  attr_accessor :streaming_io
+
   ##
   # Works like File.open.  Use MogileFS::MogileFS#new_file instead of this
   # method.
@@ -73,6 +75,7 @@ class MogileFS::HTTPFile < StringIO
     @klass = klass
     @key = key
     @big_io = nil
+    @streaming_io = nil
 
     @dests = dests
     @tried = {}
@@ -88,7 +91,14 @@ class MogileFS::HTTPFile < StringIO
     sock = Socket.mogilefs_new(uri.host, uri.port)
     sock.mogilefs_tcp_cork = true
 
-    if @big_io
+    if @streaming_io
+      file_size = @streaming_io.length
+      syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
+                          "Content-Length: #{file_size}\r\n\r\n")
+      @streaming_io.call(Proc.new do |data_to_write|
+        syswrite_full(sock, data_to_write)
+      end)
+    elsif @big_io
       # Don't try to run out of memory
       File.open(@big_io, "rb") do |fp|
         file_size = fp.stat.size
