@@ -1,5 +1,8 @@
-= 2.0.1 (WIP)
-* Ruby 1.9 compatibility
+= 2.0.1
+* verify_uris method made more robust
+* preliminary Ruby 1.9 compatibility, tests still need some work
+* allow store_content to be used with a streamable object of known length
+* add setup.rb for non-RubyGems users
 
 = 2.0.0
 
