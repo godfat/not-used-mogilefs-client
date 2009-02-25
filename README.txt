@@ -8,7 +8,7 @@ http://rubyforge.org/projects/seattlerb/
 
 Documentation:
 
-http://seattlerb.org/mogilefs-client
+http://seattlerb.rubyforge.org/mogilefs-client
 
 File bugs:
 
