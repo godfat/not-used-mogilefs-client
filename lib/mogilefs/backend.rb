@@ -193,7 +193,7 @@ class MogileFS::Backend
     if line =~ /^ERR\s+(\w+)\s*(.*)/ then
       @lasterr = $1
       @lasterrstr = $2 ? url_unescape($2) : nil
-      raise error(@lasterr)
+      raise error(@lasterr), @lasterrstr
       return nil
     end
 

@@ -107,6 +107,7 @@ class TestBackend < Test::Unit::TestCase
       @backend.parse_response('ERR you totally suck')
     rescue MogileFS::Error => err
       assert_equal 'MogileFS::Backend::YouError', err.class.to_s
+      assert_equal 'totally suck', err.message
     end
     assert_equal 'MogileFS::Backend::YouError', err.class.to_s
 
