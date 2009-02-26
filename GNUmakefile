@@ -18,9 +18,11 @@ $(T):
 	@mv $(t_log)+ $(t_log)
 
 # using make instead of rake since Rakefile takes too long to load
+manifest: Manifest.txt
 Manifest.txt:
 	git ls-files > $@+
-	mv $@+ $@
+	cmp $@+ $@ || mv $@+ $@
+	$(RM) -f $@+
 
 libs := $(wildcard lib/*.rb lib/*/*.rb)
 flay_flags =

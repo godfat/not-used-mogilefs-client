@@ -17,6 +17,7 @@ lib/mogilefs/mysql.rb
 lib/mogilefs/network.rb
 lib/mogilefs/pool.rb
 lib/mogilefs/util.rb
+setup.rb
 test/.gitignore
 test/aggregate.rb
 test/setup.rb
