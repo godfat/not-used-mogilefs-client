@@ -27,7 +27,8 @@ class MogileFS::Backend
   #   class DomainNotFoundError < MogileFS::Error; end
   #   class InvalidCharsError < MogileFS::Error; end
   def self.add_error(err_snake)
-    err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase } << 'Error'
+    err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase }
+    err_camel << 'Error' unless /Error\z/ =~ err_camel
     unless self.const_defined?(err_camel)
       self.class_eval("class #{err_camel} < MogileFS::Error; end")
     end
@@ -137,6 +138,7 @@ class MogileFS::Backend
   add_error 'none_match'
   add_error 'plugin_aborted'
   add_error 'state_too_high'
+  add_error 'size_verify_error'
   add_error 'unknown_command'
   add_error 'unknown_host'
   add_error 'unknown_key'

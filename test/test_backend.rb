@@ -80,6 +80,14 @@ class TestBackend < Test::Unit::TestCase
     assert MogileFS::Backend.const_defined?('PebKacError')
   end
 
+  def test_size_verify_error_defined
+    # "ErrorError" just looks dumb, but we used to get it
+    # since mogilefs would send us "size_verify_error" and we'd
+    # blindly append "Error" to the exception
+    assert ! MogileFS::Backend.const_defined?('SizeVerifyErrorError')
+    assert MogileFS::Backend.const_defined?('SizeVerifyError')
+  end
+
   def test_do_request_truncated
     socket_request = ''
     socket = Object.new
