@@ -24,6 +24,12 @@ Manifest.txt:
 	cmp $@+ $@ || mv $@+ $@
 	$(RM) -f $@+
 
+package: manifest
+	git diff --exit-code HEAD^0
+	$(RM) -r pkg/
+	rake fix_perms
+	rake package
+
 libs := $(wildcard lib/*.rb lib/*/*.rb)
 flay_flags =
 flog_flags =
