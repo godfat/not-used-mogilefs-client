@@ -1,3 +1,10 @@
+= 2.0.2
+* README.txt: update documentation URL
+* backend: raise exceptions with the error message
+* backend: don't blindly add "Error" to exception class names
+* Update Manifest.txt with setup.rb
+* tasks to enforce permissions are set correctly
+
 = 2.0.1
 * verify_uris method made more robust
 * preliminary Ruby 1.9 compatibility, tests still need some work
@@ -5,7 +12,6 @@
 * add setup.rb for non-RubyGems users
 
 = 2.0.0
-
 * use a set of standard exceptions based on MogileFS::Error,
   this is an incompatible API change (hence the 2.0.0 version number).
 * remove NFS support since it's gone in MogileFS 2.x and NFS is horrible
