@@ -1,5 +1,3 @@
-require 'fcntl'
-require 'socket'
 require 'stringio'
 require 'uri'
 require 'mogilefs/backend'
@@ -26,9 +24,9 @@ class MogileFS::HTTPFile < StringIO
   end
 
   ##
-  # The path this file will be stored to.
+  # The URI this file will be stored to.
 
-  attr_reader :path
+  attr_reader :uri
 
   ##
   # The key for this file.  This key won't represent a real file until you've
@@ -42,9 +40,11 @@ class MogileFS::HTTPFile < StringIO
   attr_reader :class
 
   ##
-  # The bigfile name in case we have file > 256M
+  # The big_io name in case we have file > 256M
 
-  attr_accessor :bigfile
+  attr_accessor :big_io
+
+  attr_accessor :streaming_io
 
   ##
   # Works like File.open.  Use MogileFS::MogileFS#new_file instead of this
@@ -52,6 +52,7 @@ class MogileFS::HTTPFile < StringIO
 
   def self.open(*args)
     fp = new(*args)
+    fp.set_encoding(Encoding::BINARY) if fp.respond_to?(:set_encoding)
 
     return fp unless block_given?
 
@@ -66,95 +67,92 @@ class MogileFS::HTTPFile < StringIO
   # Creates a new HTTPFile with MogileFS-specific data.  Use
   # MogileFS::MogileFS#new_file instead of this method.
 
-  def initialize(mg, fid, path, devid, klass, key, dests, content_length)
+  def initialize(mg, fid, klass, key, dests, content_length)
     super ''
     @mg = mg
     @fid = fid
-    @path = path
-    @devid = devid
+    @uri = @devid = nil
     @klass = klass
     @key = key
-    @bigfile = nil
+    @big_io = nil
+    @streaming_io = nil
 
-    @dests = dests.map { |(_,u)| URI.parse u }
+    @dests = dests
     @tried = {}
 
     @socket = nil
   end
 
   ##
-  # Closes the file handle and marks it as closed in MogileFS.
+  # Writes an HTTP PUT request to +sock+ to upload the file and
+  # returns file size if the socket finished writing
+  def upload(devid, uri)
+    file_size = length
+    sock = Socket.mogilefs_new(uri.host, uri.port)
+    sock.mogilefs_tcp_cork = true
+
+    if @streaming_io
+      file_size = @streaming_io.length
+      syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
+                          "Content-Length: #{file_size}\r\n\r\n")
+      @streaming_io.call(Proc.new do |data_to_write|
+        syswrite_full(sock, data_to_write)
+      end)
+    elsif @big_io
+      # Don't try to run out of memory
+      File.open(@big_io, "rb") do |fp|
+        file_size = fp.stat.size
+        fp.sync = true
+        syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
+                            "Content-Length: #{file_size}\r\n\r\n")
+        sysrwloop(fp, sock)
+      end
+    else
+      syswrite_full(sock, "PUT #{uri.request_uri} HTTP/1.0\r\n" \
+                          "Content-Length: #{length}\r\n\r\n#{string}")
+    end
+    sock.mogilefs_tcp_cork = false
+
+    line = sock.gets or
+      raise EmptyResponseError, 'Unable to read response line from server'
+
+    if line =~ %r%^HTTP/\d+\.\d+\s+(\d+)% then
+      case $1.to_i
+      when 200..299 then # success!
+      else
+        raise BadResponseError, "HTTP response status from upload: #{$1}"
+      end
+    else
+      raise UnparseableResponseError, "Response line not understood: #{line}"
+    end
+
+    @mg.backend.create_close(:fid => @fid, :devid => devid,
+                             :domain => @mg.domain, :key => @key,
+                             :path => uri.to_s, :size => file_size)
+    file_size
+  end # def upload
 
   def close
-    connect_socket
+    try_dests = @dests.dup
+    last_err = nil
 
-    file_size = nil
-    if @bigfile
-      # Don't try to run out of memory
-      fp = File.open(@bigfile)
-      file_size = File.size(@bigfile)
-      @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{file_size}\r\n\r\n"
-      sysrwloop(fp, @socket)
-      fp.close
-    else
-      @socket.write "PUT #{@path.request_uri} HTTP/1.0\r\nContent-Length: #{length}\r\n\r\n#{string}"
-    end
+    loop do
+      devid, url = try_dests.shift
+      devid && url or break
 
-    if connected? then
-      line = @socket.gets
-      if line.nil?
-        raise EmptyResponseError, 'Unable to read response line from server'
-      end
-
-      if line =~ %r%^HTTP/\d+\.\d+\s+(\d+)% then
-        status = Integer $1
-        case status
-        when 200..299 then # success!
-        else
-          raise BadResponseError, "HTTP response status from upload: #{status}"
-        end
-      else
-        raise InvalidResponseError, "Response line not understood: #{line}"
-      end
-
-      @socket.close
-    end
-
-    @mg.backend.create_close(:fid => @fid, :devid => @devid,
-                             :domain => @mg.domain, :key => @key,
-                             :path => @path, :size => length)
-    return file_size if @bigfile
-    return nil
-  end
-
-  private
-
-  def connected?
-    return !(@socket.nil? or @socket.closed?)
-  end
-
-  def connect_socket
-    return @socket if connected?
-
-    next_path
-
-    if @path.nil? then
-      @tried.clear
-      next_path
-      raise NoStorageNodesError if @path.nil?
-    end
-
-    @socket = TCPSocket.new @path.host, @path.port
-  end
-
-  def next_path
-    @path = nil
-    @dests.each do |dest|
-      unless @tried.include? dest then
-        @path = dest
-        return
+      uri = URI.parse(url)
+      begin
+        bytes = upload(devid, uri)
+        @devid, @uri = devid, uri
+        return bytes
+      rescue SystemCallError, Errno::ECONNREFUSED, MogileFS::Timeout,
+             EmptyResponseError, BadResponseError,
+             UnparseableResponseError => err
+        last_err = @tried[url] = err
       end
     end
+
+    raise last_err ? last_err : NoStorageNodesError
   end
 
 end

@@ -8,7 +8,7 @@ http://rubyforge.org/projects/seattlerb/
 
 Documentation:
 
-http://seattlerb.org/mogilefs-client
+http://seattlerb.rubyforge.org/mogilefs-client
 
 File bugs:
 
@@ -17,6 +17,7 @@ http://rubyforge.org/tracker/?func=add&group_id=1513&atid=5921
 Source repository (git):
 
 git://git.bogomips.org/mogilefs-client.git
+
 http://git.bogomips.org/mogilefs-client.git
 
 Repository browser (cgit):
@@ -26,7 +27,7 @@ http://git.bogomips.org/cgit/mogilefs-client.git
 == About
 
 A Ruby MogileFS client.  MogileFS is a distributed filesystem written
-by Danga Interactive.  This client supports NFS and HTTP modes.
+by Danga Interactive.  This client only supports HTTP.
 
 For information on MogileFS see:
 
@@ -47,8 +48,6 @@ Then install the gem:
   hosts = %w[192.168.1.69:6001 192.168.1.70:6001]
   mg = MogileFS::MogileFS.new(:domain => 'test', :hosts => hosts)
 
-  # NFS requires the :root parameter (e.g. :root => '/mnt/mogilefs')
-
   # Stores "A bunch of text to store" into 'some_key' with a class of 'text'.
   mg.store_content 'some_key', 'text', "A bunch of text to store"
 
@@ -61,7 +60,7 @@ Then install the gem:
 
   # Store the contents of 'image.jpeg' into the key 'my_image' with a class of
   # 'image' using an open IO.
-  File.open 'image.jpeg' do |fp|
+  File.open 'image.jpeg', 'rb' do |fp|
     mg.store_file 'my_image', 'image', fp
   end
 
@@ -72,5 +71,5 @@ Then install the gem:
 == WARNING!
 
 This client is only supported in HTTP mode.  NFS mode was previously
-supported but since MogileFS 2.x has dropped support for NFS, do not
-expect it to remain working forever.
+supported in 1.3.x, but since MogileFS 2.x has dropped support for
+NFS, this client has removed support for it.

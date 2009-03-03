@@ -1,6 +1,6 @@
-require 'socket'
-require 'thread'
 require 'mogilefs'
+require 'mogilefs/util'
+require 'thread'
 
 ##
 # MogileFS::Backend communicates with the MogileFS trackers.
@@ -27,7 +27,8 @@ class MogileFS::Backend
   #   class DomainNotFoundError < MogileFS::Error; end
   #   class InvalidCharsError < MogileFS::Error; end
   def self.add_error(err_snake)
-    err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase } << 'Error'
+    err_camel = err_snake.gsub(/(?:^|_)([a-z])/) { $1.upcase }
+    err_camel << 'Error' unless /Error\z/ =~ err_camel
     unless self.const_defined?(err_camel)
       self.class_eval("class #{err_camel} < MogileFS::Error; end")
     end
@@ -137,6 +138,7 @@ class MogileFS::Backend
   add_error 'none_match'
   add_error 'plugin_aborted'
   add_error 'state_too_high'
+  add_error 'size_verify_error'
   add_error 'unknown_command'
   add_error 'unknown_host'
   add_error 'unknown_key'
@@ -144,15 +146,6 @@ class MogileFS::Backend
   add_error 'unreg_domain'
 
   private unless defined? $TESTING
-
-  ##
-  # Returns a new TCPSocket connected to +port+ on +host+.
-
-  def connect_to(host, port)
-    return timeout(@timeout, MogileFS::Timeout){
-      TCPSocket.new(host, port)
-    }
-  end
 
   ##
   # Performs the +cmd+ request with +args+.
@@ -175,7 +168,7 @@ class MogileFS::Backend
 
       readable?
 
-      return parse_response(socket.gets)
+      parse_response(socket.gets)
     end
   end
 
@@ -183,7 +176,7 @@ class MogileFS::Backend
   # Makes a new request string for +cmd+ and +args+.
 
   def make_request(cmd, args)
-    return "#{cmd} #{url_encode args}\r\n"
+    "#{cmd} #{url_encode args}\r\n"
   end
 
   # this converts an error code from a mogilefsd tracker to an exception
@@ -202,7 +195,7 @@ class MogileFS::Backend
     if line =~ /^ERR\s+(\w+)\s*(.*)/ then
       @lasterr = $1
       @lasterrstr = $2 ? url_unescape($2) : nil
-      raise error(@lasterr)
+      raise error(@lasterr), @lasterrstr
       return nil
     end
 
@@ -220,12 +213,12 @@ class MogileFS::Backend
     peer = nil
     loop do
       t0 = Time.now
-      found = select [socket], nil, nil, timeleft
+      found = IO.select([socket], nil, nil, timeleft)
       return true if found && found[0]
       timeleft -= (Time.now - t0)
 
       if timeleft < 0
-        peer = @socket ? "#{@socket.peeraddr[3]}:#{@socket.peeraddr[1]} " : nil
+        peer = @socket ? "#{@socket.mogilefs_peername} " : nil
 
         # we DO NOT want the response we timed out waiting for, to crop up later
         # on, on the same socket, intersperesed with a subsequent request! so,
@@ -251,7 +244,7 @@ class MogileFS::Backend
       next if @dead.include? host and @dead[host] > now - 5
 
       begin
-        @socket = connect_to(*host.split(':'))
+        @socket = Socket.mogilefs_new(*(host.split(/:/) << @timeout))
       rescue SystemCallError, MogileFS::Timeout
         @dead[host] = now
         next
@@ -267,34 +260,37 @@ class MogileFS::Backend
   # Turns a url params string into a Hash.
 
   def url_decode(str)
-    pairs = str.split('&').map do |pair|
-      pair.split('=', 2).map { |v| url_unescape v }
-    end
-
-    return Hash[*pairs.flatten]
+    Hash[*(str.split(/&/).map { |pair|
+      pair.split(/=/, 2).map { |x| url_unescape(x) }
+    } ).flatten]
   end
 
   ##
   # Turns a Hash (or Array of pairs) into a url params string.
 
   def url_encode(params)
-    return params.map do |k,v|
+    params.map do |k,v|
       "#{url_escape k.to_s}=#{url_escape v.to_s}"
     end.join("&")
   end
 
   ##
   # Escapes naughty URL characters.
-
-  def url_escape(str)
-    return str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1[0] }.tr(' ', '+')
+  if ''.respond_to?(:ord) # Ruby 1.9
+    def url_escape(str)
+      str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1.ord }.tr(' ', '+')
+    end
+  else # Ruby 1.8
+    def url_escape(str)
+      str.gsub(/([^\w\,\-.\/\\\: ])/) { "%%%02x" % $1[0] }.tr(' ', '+')
+    end
   end
 
   ##
   # Unescapes naughty URL characters.
 
   def url_unescape(str)
-    return str.gsub(/%([a-f0-9][a-f0-9])/i) { [$1.to_i(16)].pack 'C' }.tr('+', ' ')
+    str.gsub(/%([a-f0-9][a-f0-9])/i) { [$1.to_i(16)].pack 'C' }.tr('+', ' ')
   end
 
 end

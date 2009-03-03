@@ -1,14 +1,5 @@
-require 'socket'
-require 'timeout'
-
 require 'mogilefs/client'
-require 'mogilefs/nfsfile'
 require 'mogilefs/util'
-
-##
-# Timeout error class.
-
-class MogileFS::Timeout < Timeout::Error; end
 
 ##
 # MogileFS File manipulation client.
@@ -16,11 +7,7 @@ class MogileFS::Timeout < Timeout::Error; end
 class MogileFS::MogileFS < MogileFS::Client
 
   include MogileFS::Util
-
-  ##
-  # The path to the local MogileFS mount point if you are using NFS mode.
-
-  attr_reader :root
+  include MogileFS::Bigfile
 
   ##
   # The domain of keys for this MogileFS client.
@@ -33,19 +20,25 @@ class MogileFS::MogileFS < MogileFS::Client
   attr_accessor :get_file_data_timeout
 
   ##
+  # internal Regexp for matching an "HTTP 200 OK" head response
+  HTTP_200_OK = %r{\AHTTP/\d+\.\d+\s+200\s+}.freeze
+
+  ##
   # Creates a new MogileFS::MogileFS instance.  +args+ must include a key
-  # :domain specifying the domain of this client.  A key :root will be used to
-  # specify the root of the NFS file system.
+  # :domain specifying the domain of this client.
 
   def initialize(args = {})
     @domain = args[:domain]
-    @root = args[:root]
 
     @get_file_data_timeout = 5
 
     raise ArgumentError, "you must specify a domain" unless @domain
 
-    super
+    if @backend = args[:db_backend]
+      @readonly = true
+    else
+      super
+    end
   end
 
   ##
@@ -61,7 +54,7 @@ class MogileFS::MogileFS < MogileFS::Client
       keys, after = list_keys prefix, after
     end
 
-    return nil
+    nil
   end
 
   ##
@@ -80,7 +73,7 @@ class MogileFS::MogileFS < MogileFS::Client
           sock = http_get_sock(URI.parse(path))
           return block_given? ? yield(sock) : sock.read
         rescue MogileFS::Timeout, Errno::ECONNREFUSED,
-               EOFError, SystemCallError
+               EOFError, SystemCallError, MogileFS::InvalidResponseError
           next
         end
       else
@@ -89,20 +82,18 @@ class MogileFS::MogileFS < MogileFS::Client
       end
     end
 
-    return nil
+    nil
   end
 
   ##
   # Get the paths for +key+.
 
   def get_paths(key, noverify = true, zone = nil)
-    noverify = noverify ? 1 : 0
-    res = @backend.get_paths(:domain => @domain, :key => key,
-                             :noverify => noverify, :zone => zone)
-    paths = (1..res['paths'].to_i).map { |i| res["path#{i}"] }
-    return paths if paths.empty?
-    return paths if paths.first =~ /^http:\/\//
-    return paths.map { |path| File.join @root, path }
+    opts = { :domain => @domain, :key => key,
+             :noverify => noverify ? 1 : 0, :zone => zone }
+    @backend.respond_to?(:_get_paths) and return @backend._get_paths(opts)
+    res = @backend.get_paths(opts)
+    (1..res['paths'].to_i).map { |i| res["path#{i}"] }
   end
 
   ##
@@ -110,39 +101,35 @@ class MogileFS::MogileFS < MogileFS::Client
   #
   # The +block+ operates like File.open.
 
-  def new_file(key, klass, bytes = 0, &block) # :yields: file
+  def new_file(key, klass = nil, bytes = 0, &block) # :yields: file
     raise MogileFS::ReadOnlyError if readonly?
+    opts = { :domain => @domain, :key => key, :multi_dest => 1 }
+    opts[:class] = klass if klass
+    res = @backend.create_open(opts)
 
-    res = @backend.create_open(:domain => @domain, :class => klass,
-                               :key => key, :multi_dest => 1)
-
-    dests = nil
-
-    if res.include? 'dev_count' then # HACK HUH?
-      dests = (1..res['dev_count'].to_i).map do |i|
+    dests = if dev_count = res['dev_count'] # multi_dest succeeded
+      (1..dev_count.to_i).map do |i|
         [res["devid_#{i}"], res["path_#{i}"]]
       end
-    else
+    else # single destination returned
       # 0x0040:  d0e4 4f4b 2064 6576 6964 3d31 2666 6964  ..OK.devid=1&fid
       # 0x0050:  3d33 2670 6174 683d 6874 7470 3a2f 2f31  =3&path=http://1
       # 0x0060:  3932 2e31 3638 2e31 2e37 323a 3735 3030  92.168.1.72:7500
       # 0x0070:  2f64 6576 312f 302f 3030 302f 3030 302f  /dev1/0/000/000/
       # 0x0080:  3030 3030 3030 3030 3033 2e66 6964 0d0a  0000000003.fid..
 
-      dests = [[res['devid'], res['path']]]
+      [[res['devid'], res['path']]]
     end
 
-    dest = dests.first
-    devid, path = dest
-
-    case path
+    case (dests[0][1] rescue nil)
     when nil, '' then
-      raise EmptyPathError
+      raise MogileFS::EmptyPathError
     when /^http:\/\// then
-      MogileFS::HTTPFile.open(self, res['fid'], path, devid, klass, key,
+      MogileFS::HTTPFile.open(self, res['fid'], klass, key,
                               dests, bytes, &block)
     else
-      MogileFS::NFSFile.open(self, res['fid'], path, devid, klass, key, &block)
+      raise MogileFS::UnsupportedPathError,
+            "paths '#{dests.inspect}' returned by backend is not supported"
     end
   end
 
@@ -157,11 +144,11 @@ class MogileFS::MogileFS < MogileFS::Client
       if file.respond_to? :sysread then
         return sysrwloop(file, mfp)
       else
-  if File.size(file) > 0x10000 # Bigass file, handle differently
-    mfp.bigfile = file
-    return
-  else
-          return File.open(file) { |fp| sysrwloop(fp, mfp) }
+	if File.size(file) > 0x10000 # Bigass file, handle differently
+	  mfp.big_io = file
+	  return
+	else
+          return File.open(file, "rb") { |fp| sysrwloop(fp, mfp) }
         end
       end
     end
@@ -174,10 +161,14 @@ class MogileFS::MogileFS < MogileFS::Client
     raise MogileFS::ReadOnlyError if readonly?
 
     new_file key, klass do |mfp|
-      mfp << content
+      if content.is_a?(MogileFS::Util::StoreContent)
+        mfp.streaming_io = content
+      else
+        mfp << content
+      end
     end
 
-    return content.length
+    content.length
   end
 
   ##
@@ -209,6 +200,7 @@ class MogileFS::MogileFS < MogileFS::Client
   ##
   # Returns the size of +key+.
   def size(key)
+    @backend.respond_to?(:_size) and return @backend._size(domain, key)
     paths = get_paths(key) or return nil
     paths_size(paths)
   end
@@ -220,19 +212,22 @@ class MogileFS::MogileFS < MogileFS::Client
       when /^http:\/\// then
         begin
           url = URI.parse path
-
-          res = timeout @get_file_data_timeout, MogileFS::Timeout do
-            s = TCPSocket.new(url.host, url.port)
-            s.syswrite("HEAD #{url.request_uri} HTTP/1.0\r\n\r\n")
-            s.sysread(4096)
-          end
-          if cl = /^Content-Length:\s*(\d+)/i.match(res)
-            return cl[1].to_i
+          s = Socket.mogilefs_new_request(url.host, url.port,
+                                   "HEAD #{url.request_uri} HTTP/1.0\r\n\r\n",
+                                   @get_file_data_timeout)
+          res = s.recv(4096, 0)
+          if res =~ HTTP_200_OK
+            head, body = res.split(/\r\n\r\n/, 2)
+            if head =~ /^Content-Length:\s*(\d+)/i
+              return $1.to_i
+            end
           end
           next
         rescue MogileFS::Timeout, Errno::ECONNREFUSED,
                EOFError, SystemCallError
           next
+        ensure
+          s.close rescue nil
         end
       else
         next unless File.exist? path
@@ -247,7 +242,11 @@ class MogileFS::MogileFS < MogileFS::Client
   # Lists keys starting with +prefix+ follwing +after+ up to +limit+.  If
   # +after+ is nil the list starts at the beginning.
 
-  def list_keys(prefix, after = nil, limit = 1000)
+  def list_keys(prefix, after = nil, limit = 1000, &block)
+    if @backend.respond_to?(:_list_keys)
+      return @backend._list_keys(domain, prefix, after, limit, &block)
+    end
+
     res = begin
       @backend.list_keys(:domain => domain, :prefix => prefix,
                          :after => after, :limit => limit)
@@ -256,24 +255,34 @@ class MogileFS::MogileFS < MogileFS::Client
     end
 
     keys = (1..res['key_count'].to_i).map { |i| res["key_#{i}"] }
+    if block_given?
+      # emulate the MogileFS::Mysql interface, slowly...
+      keys.each do |key|
+        paths = get_paths(key) or next
+        length = paths_size(paths) or next
+        yield key, length, paths.size
+      end
+    end
 
-    return keys, res['next_after']
+    [ keys, res['next_after'] ]
   end
 
   protected
 
+    # given a URI, this returns a readable socket with ready data from the
+    # body of the response.
     def http_get_sock(uri)
-      sock = nil
-      timeout @get_file_data_timeout, MogileFS::Timeout do
-        sock = TCPSocket.new(uri.host, uri.port)
-        sock.sync = true
-        sock.syswrite("GET #{uri.request_uri} HTTP/1.0\r\n\r\n")
-        buf = sock.recv(4096, Socket::MSG_PEEK)
-        head, body = buf.split(/\r\n\r\n/, 2)
-        head = sock.recv(head.size + 4)
+      sock = Socket.mogilefs_new_request(uri.host, uri.port,
+                                    "GET #{uri.request_uri} HTTP/1.0\r\n\r\n",
+                                    @get_file_data_timeout)
+      buf = sock.recv(4096, Socket::MSG_PEEK)
+      head, body = buf.split(/\r\n\r\n/, 2)
+      if head =~ HTTP_200_OK
+        sock.recv(head.size + 4, 0)
+        return sock
       end
-
-      sock
+      raise MogileFS::InvalidResponseError,
+            "GET on #{uri} returned: #{head.inspect}"
     end # def http_get_sock
 
 end

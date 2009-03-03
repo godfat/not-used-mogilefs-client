@@ -54,7 +54,7 @@ class MogileFS::Client
   # Is this a read-only client?
 
   def readonly?
-    return @readonly
+    @readonly
   end
 
 end

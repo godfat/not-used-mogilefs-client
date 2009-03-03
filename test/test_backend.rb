@@ -20,8 +20,6 @@ end
 class TestBackend < Test::Unit::TestCase
 
   def setup
-    TCPSocket.connections = []
-    TCPSocket.sockets = []
     @backend = MogileFS::Backend.new :hosts => ['localhost:1']
   end
 
@@ -41,17 +39,22 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_do_request
-    socket_request = ''
-    socket = Object.new
-    def socket.closed?() false end
-    def socket.send(request, flags) return request.length end
-    def @backend.select(*args) return [true] end
-    def socket.gets() return 'OK 1 you=win' end
+    received = Tempfile.new('received')
+    tmp = TempServer.new(Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      received.syswrite(client.recv(4096))
+      client.send "OK 1 you=win\r\n", 0
+    end)
 
-    @backend.instance_variable_set '@socket', socket
+    @backend.hosts = [ "127.0.0.1:#{tmp.port}" ]
 
     assert_equal({'you' => 'win'},
                  @backend.do_request('go!', { 'fight' => 'team fight!' }))
+    received.sysseek(0)
+    assert_equal "go! fight=team+fight%21\r\n", received.sysread(4096)
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_do_request_send_error
@@ -81,6 +84,14 @@ class TestBackend < Test::Unit::TestCase
     assert MogileFS::Backend.const_defined?('PebKacError')
   end
 
+  def test_size_verify_error_defined
+    # "ErrorError" just looks dumb, but we used to get it
+    # since mogilefs would send us "size_verify_error" and we'd
+    # blindly append "Error" to the exception
+    assert ! MogileFS::Backend.const_defined?('SizeVerifyErrorError')
+    assert MogileFS::Backend.const_defined?('SizeVerifyError')
+  end
+
   def test_do_request_truncated
     socket_request = ''
     socket = Object.new
@@ -108,6 +119,7 @@ class TestBackend < Test::Unit::TestCase
       @backend.parse_response('ERR you totally suck')
     rescue MogileFS::Error => err
       assert_equal 'MogileFS::Backend::YouError', err.class.to_s
+      assert_equal 'totally suck', err.message
     end
     assert_equal 'MogileFS::Backend::YouError', err.class.to_s
 
@@ -120,31 +132,36 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_readable_eh_readable
-    socket = Object.new
-    def socket.closed?() false end
-    def @backend.select(*args) return [true] end
-    @backend.instance_variable_set '@socket', socket
+    accept = Tempfile.new('accept')
+    tmp = TempServer.new(Proc.new do |serv, port|
+      client, client_addr = serv.accept
+      client.sync = true
+      accept.syswrite('.')
+      client.send('.', 0)
+      sleep
+    end)
 
+    @backend = MogileFS::Backend.new :hosts => [ "127.0.0.1:#{tmp.port}" ]
     assert_equal true, @backend.readable?
+    assert_equal 1, accept.stat.size
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_readable_eh_not_readable
-    socket = FakeSocket.new
-    def socket.closed?() false end
-    def @backend.select(r=nil, w=nil, e=nil, t=1)
-      Kernel.sleep(t.to_f + 0.1)
-      []
-    end
-    @backend.instance_variable_set '@socket', socket
-
+    tmp = TempServer.new(Proc.new { |serv,port| serv.accept; sleep })
+    @backend = MogileFS::Backend.new(:hosts => [ "127.0.0.1:#{tmp.port}" ],
+                                     :timeout => 0.5)
     begin
       @backend.readable?
     rescue MogileFS::UnreadableSocketError => e
-      assert_equal '127.0.0.1:6001 never became readable', e.message
+      assert_equal "127.0.0.1:#{tmp.port} never became readable", e.message
     rescue Exception => err
       flunk "MogileFS::UnreadableSocketError not raised #{err} #{err.backtrace}"
     else
       flunk "MogileFS::UnreadableSocketError not raised"
+    ensure
+      TempServer.destroy_all!
     end
   end
 
@@ -155,28 +172,72 @@ class TestBackend < Test::Unit::TestCase
   end
 
   def test_socket_robust
-    @backend.hosts = ['localhost:6001', 'localhost:6002']
-    def @backend.connect_to(host, port)
-      @first = (defined? @first) ? false : true
-      raise Errno::ECONNREFUSED if @first
+    bad_accept = Tempfile.new('bad_accept')
+    accept = Tempfile.new('accept')
+    bad = Proc.new do |serv,port|
+      client, client_addr = serv.accept
+      bad_accept.syswrite('!')
     end
+    good = Proc.new do |serv,port|
+      client, client_addr = serv.accept
+      accept.syswrite('.')
+      client.syswrite('.')
+      client.close
+      sleep
+    end
+    nr = 10
 
-    assert_equal({}, @backend.dead)
-    @backend.socket
-    assert_equal false, @backend.dead.keys.empty?
+    nr.times do
+      begin
+        t1 = TempServer.new(bad, ENV['TEST_DEAD_PORT'])
+        t2 = TempServer.new(good)
+        hosts = ["127.0.0.1:#{t1.port}", "127.0.0.1:#{t2.port}"]
+        @backend = MogileFS::Backend.new(:hosts => hosts.dup)
+        assert_equal({}, @backend.dead)
+        old_chld_handler = trap('CHLD', 'DEFAULT')
+        t1.destroy!
+        Process.waitpid(t1.pid)
+        trap('CHLD', old_chld_handler)
+        sock = @backend.socket
+        assert_equal Socket, sock.class
+        port = Socket.unpack_sockaddr_in(sock.getpeername).first
+        # p [ 'ports', "port=#{port}", "t1=#{t1.port}", "t2=#{t2.port}" ]
+        assert_equal t2.port, port
+        IO.select([sock])
+        assert_equal '.', sock.sysread(1)
+      ensure
+        TempServer.destroy_all!
+      end
+    end # nr.times
+    assert_equal 0, bad_accept.stat.size
+    assert_equal nr, accept.stat.size
   end
 
   def test_shutdown
-    fake_socket = FakeSocket.new
-    @backend.socket = fake_socket
-    assert_equal fake_socket, @backend.socket
+    accept_nr = 0
+    tmp = TempServer.new(Proc.new do |serv,port|
+      client, client_addr = serv.accept
+      accept_nr += 1
+      r = IO.select([client], [client])
+      client.syswrite(accept_nr.to_s)
+      sleep
+    end)
+    @backend = MogileFS::Backend.new :hosts => [ "127.0.0.1:#{tmp.port}" ]
+    assert @backend.socket
+    assert ! @backend.socket.closed?
+    IO.select([@backend.socket])
+    resp = @backend.socket.sysread(4096)
     @backend.shutdown
     assert_equal nil, @backend.instance_variable_get(:@socket)
+    assert_equal 1, resp.to_i
+    ensure
+      TempServer.destroy_all!
   end
 
   def test_url_decode
     assert_equal({"\272z" => "\360opy", "f\000" => "\272r"},
                  @backend.url_decode("%baz=%f0opy&f%00=%bar"))
+    assert_equal({}, @backend.url_decode(''))
   end
 
   def test_url_encode

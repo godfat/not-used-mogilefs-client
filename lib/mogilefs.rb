@@ -6,13 +6,15 @@
 
 module MogileFS
 
-  VERSION = '2.0.1'.freeze
+  VERSION = '2.0.2'.freeze
 
   ##
   # Raised when a socket remains unreadable for too long.
 
   class Error < StandardError; end
   class UnreadableSocketError < Error; end
+  class SizeMismatchError < Error; end
+  class ChecksumMismatchError < RuntimeError; end
   class ReadOnlyError < Error
     def message; 'readonly mogilefs'; end
   end
@@ -20,6 +22,7 @@ module MogileFS
     def message; 'Empty path for mogile upload'; end
   end
 
+  class UnsupportedPathError < Error; end
   class RequestTruncatedError < Error; end
   class InvalidResponseError < Error; end
   class UnreachableBackendError < Error
@@ -28,12 +31,10 @@ module MogileFS
 
 end
 
-require 'socket'
-
 require 'mogilefs/backend'
-require 'mogilefs/nfsfile'
 require 'mogilefs/httpfile'
 require 'mogilefs/client'
+require 'mogilefs/bigfile'
 require 'mogilefs/mogilefs'
 require 'mogilefs/admin'
 

@@ -19,7 +19,7 @@ class MogileFS::Pool
       object = @klass.new(*@args)
       @objects << object
     end
-    return object
+    object
   end
 
   def put(o)
@@ -31,8 +31,10 @@ class MogileFS::Pool
   def use
     object = get
     yield object
+    nil
   ensure
     put object
+    nil
   end
 
   def purge
