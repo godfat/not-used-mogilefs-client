@@ -71,7 +71,17 @@ class MogileFS::MogileFS < MogileFS::Client
       when /^http:\/\// then
         begin
           sock = http_get_sock(URI.parse(path))
-          return block_given? ? yield(sock) : sock.read
+          return( if block_given?
+                    yield(sock)
+                  else
+                    begin
+                      sock.read
+                    rescue Errno::EAGAIN
+                      IO.select([sock])
+                      retry
+                    end
+                  end )
+          # return block_given? ? yield(sock) : sock.read
         rescue MogileFS::Timeout, Errno::ECONNREFUSED,
                EOFError, SystemCallError, MogileFS::InvalidResponseError
           next
