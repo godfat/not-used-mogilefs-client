@@ -54,8 +54,8 @@ class TestMogileFS__MogileFS < TestMogileFS
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev1/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
-      client.send("HTTP/1.0 404 Not Found\r\n\r\ndata!", 0)
       accept.syswrite('.')
+      client.send("HTTP/1.0 404 Not Found\r\n\r\ndata!", 0)
       client.close
     end
 
@@ -65,8 +65,8 @@ class TestMogileFS__MogileFS < TestMogileFS
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev2/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
-      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
       accept.syswrite('.')
+      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
       client.close
     end
 
@@ -271,8 +271,8 @@ class TestMogileFS__MogileFS < TestMogileFS
       client.sync = true
       readed = client.recv(4096, 0) rescue nil
       assert_equal "HEAD /path HTTP/1.0\r\n\r\n", readed
-      client.send("HTTP/1.0 404 Not Found\r\nContent-Length: 5\r\n\r\n", 0)
       tmp.syswrite('.')
+      client.send("HTTP/1.0 404 Not Found\r\nContent-Length: 5\r\n\r\n", 0)
       client.close
     end)
 
