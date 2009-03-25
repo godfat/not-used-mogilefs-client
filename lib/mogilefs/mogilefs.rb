@@ -57,28 +57,20 @@ class MogileFS::MogileFS < MogileFS::Client
   # Retrieves the contents of +key+.
 
   def get_file_data(key, &block)
-    paths = get_paths key
-
-    return nil unless paths
-
+    paths = get_paths(key) or return nil
     paths.each do |path|
-      next unless path
-      case path
-      when /^http:\/\// then
+      begin
+        sock = http_read_sock(URI.parse(path))
         begin
-          sock = http_read_sock(URI.parse(path))
           return yield(sock) if block_given?
           return sysread_full(sock, sock.mogilefs_size, @get_file_data_timeout)
-        rescue MogileFS::Timeout, Errno::ECONNREFUSED,
-               EOFError, SystemCallError, MogileFS::InvalidResponseError
-          next
+        ensure
+          sock.close rescue nil
         end
-      else
-        next unless File.exist? path
-        return File.read(path)
+      rescue MogileFS::Timeout, MogileFS::InvalidResponseError,
+             Errno::ECONNREFUSED, EOFError, SystemCallError
       end
     end
-
     nil
   end
 
@@ -204,28 +196,13 @@ class MogileFS::MogileFS < MogileFS::Client
 
   def paths_size(paths)
     paths.each do |path|
-      next unless path
-      case path
-      when /^http:\/\// then
-        begin
-          s = begin
-            http_read_sock(URI.parse(path), "HEAD")
-          rescue MogileFS::InvalidResponseError
-            next
-          end
-          return s.mogilefs_size
-        rescue MogileFS::Timeout, Errno::ECONNREFUSED,
-               EOFError, SystemCallError
-          next
-        ensure
-          s.close rescue nil
-        end
-      else
-        next unless File.exist? path
-        return File.size(path)
+      begin
+        return http_read_sock(URI.parse(path), "HEAD").mogilefs_size
+      rescue MogileFS::InvalidResponseError, MogileFS::Timeout,
+             Errno::ECONNREFUSED, EOFError, SystemCallError => err
+        next
       end
     end
-
     nil
   end
 
@@ -272,14 +249,17 @@ class MogileFS::MogileFS < MogileFS::Client
       # we're dealing with a seriously slow/stupid HTTP server if we can't
       # get the header in a single read(2) syscall.
       if head =~ %r{\AHTTP/\d+\.\d+\s+200\s*} &&
-         head =~ %r{^Content-Length:\s*(\d+)}
+         head =~ %r{^Content-Length:\s*(\d+)}i
         sock.mogilefs_size = $1.to_i
-        sock.recv(head.size + 4, 0) if http_method == "GET"
+        case http_method
+        when "HEAD" then sock.close
+        when "GET" then sock.recv(head.size + 4, 0)
+        end
         return sock
       end
+      sock.close rescue nil
       raise MogileFS::InvalidResponseError,
             "#{http_method} on #{uri} returned: #{head.inspect}"
     end # def http_read_sock
 
 end
-
