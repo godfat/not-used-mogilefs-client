@@ -90,7 +90,7 @@ class MogileFS::MogileFS < MogileFS::Client
              :noverify => noverify ? 1 : 0, :zone => zone }
     @backend.respond_to?(:_get_paths) and return @backend._get_paths(opts)
     res = @backend.get_paths(opts)
-    (1..res['paths'].to_i).map { |i| res["path#{i}"] }
+    (1..res['paths'].to_i).map { |i| res["path#{i}"] }.compact
   end
 
   ##
