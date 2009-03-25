@@ -56,4 +56,65 @@ class TestMogileFS__Util < Test::Unit::TestCase
       t.destroy!
   end
 
+  def test_sysread_slowly
+    nr = 10
+    str = 'abcde'
+    expect = str * nr
+    rd, wr = IO.pipe
+    pid = fork do
+      rd.close
+      nr.times do
+        syswrite_full(wr, str)
+        sleep(0.1)
+      end
+    end
+    wr.close
+    buf = sysread_full(rd, expect.size)
+    assert_equal expect, buf
+    rd.close
+    ensure
+      Process.kill('TERM', pid) rescue nil
+      Process.waitpid(pid) rescue nil
+  end
+
+  def test_sysread_timeout
+    nr = 10
+    str = 'abcde'
+    expect = str * nr
+    rd, wr = IO.pipe
+    pid = fork do
+      rd.close
+      nr.times do
+        syswrite_full(wr, str)
+        sleep 1
+      end
+    end
+    wr.close
+    assert_raises(MogileFS::Timeout) { sysread_full(rd, expect.size, 0.1) }
+    rd.close
+    ensure
+      Process.kill('TERM', pid) rescue nil
+      Process.waitpid(pid) rescue nil
+  end
+
+  def test_sysread_full_timeout
+    nr = 100
+    str = 'abcde'
+    expect = str * nr
+    rd, wr = IO.pipe
+    pid = fork do
+      rd.close
+      nr.times do
+        syswrite_full(wr, str)
+        sleep 0.01
+      end
+    end
+    wr.close
+    assert_raises(MogileFS::Timeout) { sysread_full(rd,expect.size,0.1,true) }
+    rd.close
+    ensure
+      Process.kill('TERM', pid) rescue nil
+      Process.waitpid(pid) rescue nil
+  end
+
 end
