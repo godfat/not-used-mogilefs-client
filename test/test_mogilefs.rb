@@ -189,7 +189,7 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_list_keys
-    @backend.list_keys = { 'key_count' => 2, 'next_after' => 'new_key_2',
+    @backend.list_keys = { 'key_count' => '2', 'next_after' => 'new_key_2',
                            'key_1' => 'new_key_1', 'key_2' => 'new_key_2' }
 
     keys, next_after = @client.list_keys 'new'
@@ -198,7 +198,7 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_list_keys_block
-    @backend.list_keys = { 'key_count' => 2, 'next_after' => 'new_key_2',
+    @backend.list_keys = { 'key_count' => '2', 'next_after' => 'new_key_2',
                            'key_1' => 'new_key_1', 'key_2' => 'new_key_2' }
     http_resp = "HTTP/1.0 200 OK\r\nContent-Length: %u\r\n"
     srv = Proc.new do |serv, port, size|
@@ -212,10 +212,10 @@ class TestMogileFS__MogileFS < TestMogileFS
     t1 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 5) })
     t2 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 5) })
     t3 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 10) })
-    @backend.get_paths = { 'paths' => 2,
+    @backend.get_paths = { 'paths' => '2',
                            'path1' => "http://127.0.0.1:#{t1.port}/",
                            'path2' => "http://127.0.0.1:#{t2.port}/" }
-    @backend.get_paths = { 'paths' => 1,
+    @backend.get_paths = { 'paths' => '1',
                            'path1' => "http://127.0.0.1:#{t3.port}/" }
 
     res = []
