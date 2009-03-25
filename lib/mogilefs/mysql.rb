@@ -55,7 +55,7 @@ class MogileFS::Mysql
 
     keys = []
     query(sql).each do |dkey,length,devcount|
-      yield(dkey, length, devcount) if block_given?
+      yield(dkey, length.to_i, devcount.to_i) if block_given?
       keys << dkey
     end
 

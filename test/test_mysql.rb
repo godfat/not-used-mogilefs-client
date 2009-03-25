@@ -64,8 +64,10 @@ class TestMogileFS__Mysql < Test::Unit::TestCase
 
   def test_list_keys
     expect_full = [ [ 'foo', 123, 2 ], [ 'bar', 456, 1 ] ]
+    result_full = eval(expect_full.inspect)
+    result_full.each { |x| (1..2).each { |i| x[i] = x[i].to_s } }
     expect_keys = [ [ 'foo', 'bar' ], 'bar' ]
-    @my.expect << expect_full
+    @my.expect << result_full
     full = []
     keys = @mg._list_keys('test') do |dkey,length,devcount|
       full << [ dkey, length, devcount ]

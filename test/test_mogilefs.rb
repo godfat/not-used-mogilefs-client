@@ -54,8 +54,8 @@ class TestMogileFS__MogileFS < TestMogileFS
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev1/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
-      client.send("HTTP/1.0 404 Not Found\r\n\r\ndata!", 0)
       accept.syswrite('.')
+      client.send("HTTP/1.0 404 Not Found\r\n\r\ndata!", 0)
       client.close
     end
 
@@ -65,8 +65,8 @@ class TestMogileFS__MogileFS < TestMogileFS
       readed = client.recv(4096, 0)
       assert(readed =~ \
             %r{\AGET /dev2/0/000/000/0000000062\.fid HTTP/1.[01]\r\n\r\n\Z})
-      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
       accept.syswrite('.')
+      client.send("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\ndata!", 0)
       client.close
     end
 
@@ -189,7 +189,7 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_list_keys
-    @backend.list_keys = { 'key_count' => 2, 'next_after' => 'new_key_2',
+    @backend.list_keys = { 'key_count' => '2', 'next_after' => 'new_key_2',
                            'key_1' => 'new_key_1', 'key_2' => 'new_key_2' }
 
     keys, next_after = @client.list_keys 'new'
@@ -198,7 +198,7 @@ class TestMogileFS__MogileFS < TestMogileFS
   end
 
   def test_list_keys_block
-    @backend.list_keys = { 'key_count' => 2, 'next_after' => 'new_key_2',
+    @backend.list_keys = { 'key_count' => '2', 'next_after' => 'new_key_2',
                            'key_1' => 'new_key_1', 'key_2' => 'new_key_2' }
     http_resp = "HTTP/1.0 200 OK\r\nContent-Length: %u\r\n"
     srv = Proc.new do |serv, port, size|
@@ -212,10 +212,10 @@ class TestMogileFS__MogileFS < TestMogileFS
     t1 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 5) })
     t2 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 5) })
     t3 = TempServer.new(Proc.new { |serv, port| srv.call(serv, port, 10) })
-    @backend.get_paths = { 'paths' => 2,
+    @backend.get_paths = { 'paths' => '2',
                            'path1' => "http://127.0.0.1:#{t1.port}/",
                            'path2' => "http://127.0.0.1:#{t2.port}/" }
-    @backend.get_paths = { 'paths' => 1,
+    @backend.get_paths = { 'paths' => '1',
                            'path1' => "http://127.0.0.1:#{t3.port}/" }
 
     res = []
@@ -271,8 +271,8 @@ class TestMogileFS__MogileFS < TestMogileFS
       client.sync = true
       readed = client.recv(4096, 0) rescue nil
       assert_equal "HEAD /path HTTP/1.0\r\n\r\n", readed
-      client.send("HTTP/1.0 404 Not Found\r\nContent-Length: 5\r\n\r\n", 0)
       tmp.syswrite('.')
+      client.send("HTTP/1.0 404 Not Found\r\nContent-Length: 5\r\n\r\n", 0)
       client.close
     end)
 

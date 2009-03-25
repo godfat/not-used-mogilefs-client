@@ -56,7 +56,7 @@ module MogileFS::Bigfile
         raise MogileFS::Backend::NoDevices if uris.empty?
       end
 
-      sock = http_get_sock(uris[0])
+      sock = http_read_sock(uris[0])
       md5.reset if md5
       w = sysrwloop(sock, wr_io, filter)
 

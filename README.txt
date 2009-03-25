@@ -14,6 +14,9 @@ File bugs:
 
 http://rubyforge.org/tracker/?func=add&group_id=1513&atid=5921
 
+Please email Eric Wong at normalperson@yhbt.net as well since
+he finds web interfaces difficult to use.
+
 Source repository (git):
 
 git://git.bogomips.org/mogilefs-client.git

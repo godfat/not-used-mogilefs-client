@@ -67,6 +67,29 @@ module MogileFS::Util
     # should never get here
   end
 
+  def sysread_full(io_rd, size, timeout = nil, full_timeout = false)
+    tmp = [] # avoid expensive string concatenation with every loop iteration
+    reader = io_rd.method(timeout ? :read_nonblock : :sysread)
+    begin
+      while size > 0
+        tmp << reader.call(size)
+        size -= tmp.last.size
+      end
+    rescue Errno::EAGAIN, Errno::EINTR
+      t0 = Time.now
+      r = IO.select([ io_rd ], nil, nil, timeout)
+      if timeout
+        timeout -= (Time.now - t0) if full_timeout
+        if !(r && r[0]) || timeout < 0
+          raise MogileFS::Timeout, 'sysread_full timeout'
+        end
+      end
+      retry
+    rescue EOFError
+    end
+    tmp.join('')
+  end
+
   class StoreContent < Proc
     def initialize(total_size, &writer_proc)
       @total_size = total_size
@@ -87,7 +110,7 @@ require 'timeout'
 class MogileFS::Timeout < Timeout::Error; end
 
 class Socket
-  attr_accessor :mogilefs_addr, :mogilefs_connected
+  attr_accessor :mogilefs_addr, :mogilefs_connected, :mogilefs_size
 
   TCP_CORK = 3 if ! defined?(TCP_CORK) && RUBY_PLATFORM =~ /linux/
 
@@ -159,9 +182,14 @@ class Socket
       sock = mogilefs_new(host, port, timeout)
       syswrite_full(sock, request, timeout)
       timeout -= (Time.now - t0)
-      raise MogileFS::Timeout, 'socket read timeout' if timeout < 0
+      if timeout < 0
+        sock.close rescue nil
+        raise MogileFS::Timeout, 'socket read timeout'
+      end
       r = IO.select([sock], nil, nil, timeout)
       return sock if r && r[0]
+
+      sock.close rescue nil
       raise MogileFS::Timeout, 'socket read timeout'
     end
 
