@@ -77,10 +77,12 @@ module MogileFS::Util
       end
     rescue Errno::EAGAIN, Errno::EINTR
       t0 = Time.now
-      ready = IO.select([ io_rd ], nil, nil, timeout)
-      timeout -= (Time.now - t0) if full_timeout
-      if ready != [ io_rd ] || timeout < 0
-        raise MogileFS::Timeout, 'sysread_full timeout'
+      r = IO.select([ io_rd ], nil, nil, timeout)
+      if timeout
+        timeout -= (Time.now - t0) if full_timeout
+        if !(r && r[0]) || timeout < 0
+          raise MogileFS::Timeout, 'sysread_full timeout'
+        end
       end
       retry
     rescue EOFError
