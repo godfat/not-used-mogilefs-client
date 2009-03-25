@@ -180,9 +180,14 @@ class Socket
       sock = mogilefs_new(host, port, timeout)
       syswrite_full(sock, request, timeout)
       timeout -= (Time.now - t0)
-      raise MogileFS::Timeout, 'socket read timeout' if timeout < 0
+      if timeout < 0
+        sock.close rescue nil
+        raise MogileFS::Timeout, 'socket read timeout'
+      end
       r = IO.select([sock], nil, nil, timeout)
       return sock if r && r[0]
+
+      sock.close rescue nil
       raise MogileFS::Timeout, 'socket read timeout'
     end
 
